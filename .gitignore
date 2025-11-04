@@ -3,8 +3,9 @@
 *.env
 !.env.example
 
-# Setup scripts
-clean_setup.sh
+# Shell scripts (may contain secrets)
+*.sh
+!setup-example.sh
 
 # Gradle
 .gradle/

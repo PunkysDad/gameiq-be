@@ -102,9 +102,9 @@ spring:
       on-profile: dev
       
   datasource:
-    url: jdbc:postgresql://postgres:5432/athlete_performance_db
-    username: athlete_user
-    password: dev_password_2024
+    url: jdbc:postgresql://postgres:5432/${DB_NAME:gameiq_db}
+    username: ${DB_USER:gameiq_user}
+    password: ${DB_PASSWORD:gameiq_password}
     
   flyway:
     enabled: false

@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     container_name: gameiq-postgres
     environment:
-      POSTGRES_DB: athlete_performance_db
-      POSTGRES_USER: athlete_user
-      POSTGRES_PASSWORD: dev_password_2024
+      POSTGRES_DB: gameiq_db                    # Match .env
+      POSTGRES_USER: gameiq_user               # Match .env  
+      POSTGRES_PASSWORD: gameiq_password 
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
@@ -14,7 +14,7 @@ services:
     networks:
       - gameiq-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U athlete_user -d athlete_performance_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-gameiq_user} -d ${DB_NAME:-gameiq_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,9 +31,9 @@ services:
       - SPRING_PROFILES_ACTIVE=dev
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=athlete_performance_db
-      - DB_USER=athlete_user
-      - DB_PASSWORD=dev_password_2024
+      - DB_NAME=${DB_NAME:-gameiq_db}
+      - DB_USER=${DB_USER:-gameiq_user}
+      - DB_PASSWORD=${DB_PASSWORD:-gameiq_password}
       - CLAUDE_API_KEY=${CLAUDE_API_KEY}
       - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID}
       - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET}
