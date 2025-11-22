@@ -352,33 +352,4 @@ class ClaudeService(
         
         return inputCostCents + outputCostCents
     }
-
-    suspend fun getCoachingAnalysis(prompt: String): ClaudeCoachingResponse {
-        val request = ClaudeRequest(
-            model = "claude-sonnet-4-20250514",
-            maxTokens = 1500,
-            messages = listOf(
-                ClaudeMessage(
-                    role = "user",
-                    content = prompt
-                )
-            )
-        )
-        
-        val response = claudeClient.sendRequest(request)
-        return parseCoachingResponse(response.content)
-    }
-
-    private fun parseCoachingResponse(content: String): ClaudeCoachingResponse {
-        // Parse the structured JSON response from Claude
-        val jsonResponse = objectMapper.readValue(content, JsonNode::class.java)
-        
-        return ClaudeCoachingResponse(
-            recommendation = jsonResponse["recommendation"].asText(),
-            successProbability = jsonResponse["successProbability"].asText(),
-            reasoning = jsonResponse["reasoning"].toList(),
-            alternatives = jsonResponse["alternatives"].toList(),
-            historicalContext = jsonResponse["historicalContext"].asText()
-        )
-    }
 }

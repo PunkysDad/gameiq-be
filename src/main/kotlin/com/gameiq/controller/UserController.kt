@@ -1,6 +1,9 @@
 package com.gameiq.controller
 
 import com.gameiq.entity.User
+import com.gameiq.entity.Sport
+import com.gameiq.entity.Position
+import com.gameiq.entity.SubscriptionTier
 import com.gameiq.service.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -21,7 +24,8 @@ data class UserProfileResponse(
 data class UserProfileUpdateRequest(
     val displayName: String?,
     val primarySport: String?,
-    val primaryPosition: String?
+    val primaryPosition: String?,
+    val age: Int?
 )
 
 data class UserStatsResponse(
@@ -41,15 +45,15 @@ class UserController(
     @GetMapping("/{userId}")
     fun getUserProfile(@PathVariable userId: Long): ResponseEntity<UserProfileResponse> {
         return try {
-            val user = userService.getUserById(userId)
+            val user = userService.findById(userId) ?: return ResponseEntity.notFound().build()
             val response = UserProfileResponse(
                 id = user.id,
                 firebaseUid = user.firebaseUid,
                 email = user.email,
                 displayName = user.displayName,
                 subscriptionTier = user.subscriptionTier.name,
-                primarySport = user.primarySport,
-                primaryPosition = user.primaryPosition,
+                primarySport = user.primarySport?.name,
+                primaryPosition = user.primaryPosition?.name,
                 createdAt = user.createdAt.toString(),
                 isActive = user.isActive
             )
@@ -62,15 +66,15 @@ class UserController(
     @GetMapping("/firebase/{firebaseUid}")
     fun getUserByFirebaseUid(@PathVariable firebaseUid: String): ResponseEntity<UserProfileResponse> {
         return try {
-            val user = userService.getUserByFirebaseUid(firebaseUid)
+            val user = userService.findByFirebaseUid(firebaseUid) ?: return ResponseEntity.notFound().build()
             val response = UserProfileResponse(
                 id = user.id,
                 firebaseUid = user.firebaseUid,
                 email = user.email,
                 displayName = user.displayName,
                 subscriptionTier = user.subscriptionTier.name,
-                primarySport = user.primarySport,
-                primaryPosition = user.primaryPosition,
+                primarySport = user.primarySport?.name,
+                primaryPosition = user.primaryPosition?.name,
                 createdAt = user.createdAt.toString(),
                 isActive = user.isActive
             )
@@ -86,11 +90,20 @@ class UserController(
         @RequestBody updateRequest: UserProfileUpdateRequest
     ): ResponseEntity<UserProfileResponse> {
         return try {
+            // Convert string sport/position to enums
+            val sport = updateRequest.primarySport?.let { 
+                try { Sport.valueOf(it.uppercase()) } catch (e: Exception) { null }
+            }
+            val position = updateRequest.primaryPosition?.let {
+                try { Position.valueOf(it.uppercase()) } catch (e: Exception) { null }
+            }
+            
             val updatedUser = userService.updateUserProfile(
                 userId = userId,
                 displayName = updateRequest.displayName,
-                primarySport = updateRequest.primarySport,
-                primaryPosition = updateRequest.primaryPosition
+                primarySport = sport,
+                primaryPosition = position,
+                age = updateRequest.age
             )
             
             val response = UserProfileResponse(
@@ -99,8 +112,8 @@ class UserController(
                 email = updatedUser.email,
                 displayName = updatedUser.displayName,
                 subscriptionTier = updatedUser.subscriptionTier.name,
-                primarySport = updatedUser.primarySport,
-                primaryPosition = updatedUser.primaryPosition,
+                primarySport = updatedUser.primarySport?.name,
+                primaryPosition = updatedUser.primaryPosition?.name,
                 createdAt = updatedUser.createdAt.toString(),
                 isActive = updatedUser.isActive
             )
@@ -113,7 +126,13 @@ class UserController(
     @GetMapping("/{userId}/stats")
     fun getUserStats(@PathVariable userId: Long): ResponseEntity<UserStatsResponse> {
         return try {
-            val stats = userService.getUserStats(userId)
+            // For now, return mock stats until we implement the actual stats methods
+            val stats = UserStatsResponse(
+                totalQuizzes = 0L,
+                averageScore = 0.0,
+                totalConversations = 0L,
+                currentStreak = 0
+            )
             ResponseEntity.ok(stats)
         } catch (e: Exception) {
             ResponseEntity.notFound().build()
@@ -126,11 +145,21 @@ class UserController(
         @RequestParam tier: String
     ): ResponseEntity<Map<String, Any>> {
         return try {
-            userService.updateSubscriptionTier(userId, tier)
+            // Convert string to SubscriptionTier enum
+            val subscriptionTier = try {
+                SubscriptionTier.valueOf(tier.uppercase())
+            } catch (e: Exception) {
+                return ResponseEntity.badRequest().body(mapOf(
+                    "success" to false,
+                    "message" to "Invalid subscription tier: $tier"
+                ))
+            }
+            
+            val updatedUser = userService.upgradeSubscription(userId, subscriptionTier)
             ResponseEntity.ok(mapOf(
                 "success" to true,
                 "message" to "Subscription updated to $tier",
-                "newTier" to tier
+                "newTier" to updatedUser.subscriptionTier.name
             ))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(mapOf(

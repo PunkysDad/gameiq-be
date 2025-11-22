@@ -104,7 +104,7 @@ spring:
   datasource:
     url: jdbc:postgresql://postgres:5432/${DB_NAME:gameiq_db}
     username: ${DB_USER:gameiq_user}
-    password: ${DB_PASSWORD:gameiq_password}
+    password: ${DB_PASSWORD:gameiq_dev_pass}
     
   flyway:
     enabled: false

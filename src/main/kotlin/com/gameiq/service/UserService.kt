@@ -1,9 +1,6 @@
 package com.gameiq.service
 
-import com.gameiq.entity.User
-import com.gameiq.entity.SubscriptionTier
-import com.gameiq.entity.Sport
-import com.gameiq.entity.Position
+import com.gameiq.entity.*
 import com.gameiq.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -131,105 +128,10 @@ class UserService(
         
         val updatedUser = user.copy(
             isActive = true,
-            lastActiveAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now()
         )
         
         return userRepository.save(updatedUser)
-    }
-    
-    // User queries and analytics
-    fun getActiveUsers(): List<User> {
-        return userRepository.findByIsActiveTrue()
-    }
-    
-    fun getRecentlyActiveUsers(hours: Long = 24): List<User> {
-        val since = LocalDateTime.now().minusHours(hours)
-        return userRepository.findActiveUsersSince(since)
-    }
-    
-    fun getUsersBySubscriptionTier(tier: SubscriptionTier): List<User> {
-        return userRepository.findBySubscriptionTier(tier)
-    }
-    
-    fun getUsersBySport(sport: Sport): List<User> {
-        return userRepository.findByPrimarySport(sport)
-    }
-    
-    fun getUsersByPosition(position: Position): List<User> {
-        return userRepository.findByPrimaryPosition(position)
-    }
-    
-    fun getUsersBySportAndPosition(sport: Sport, position: Position): List<User> {
-        return userRepository.findByPrimarySportAndPrimaryPosition(sport, position)
-    }
-    
-    fun getNewUsersInPeriod(days: Long = 30): List<User> {
-        val since = LocalDateTime.now().minusDays(days)
-        return userRepository.findByCreatedAtAfter(since)
-    }
-    
-    // Subscription analytics
-    fun getSubscriptionTierDistribution(): Map<SubscriptionTier, Long> {
-        val counts = userRepository.getSubscriptionTierCounts()
-        return counts.associate { 
-            (it[0] as SubscriptionTier) to (it[1] as Long) 
-        }
-    }
-    
-    fun getSportDistribution(): Map<Sport, Long> {
-        val counts = userRepository.getSportDistribution()
-        return counts.associate { 
-            (it[0] as Sport) to (it[1] as Long) 
-        }
-    }
-    
-    // Rate limiting checks for API usage
-    fun canUseFeature(userId: Long, feature: String): Boolean {
-        val user = findById(userId) ?: return false
-        
-        return when (user.subscriptionTier) {
-            SubscriptionTier.FREE -> {
-                // Limited features for free users
-                when (feature) {
-                    "claude_chat" -> true // Will be rate limited in ClaudeService
-                    "quiz_creation" -> true // Will be rate limited in QuizService
-                    "workout_plans" -> true
-                    else -> false
-                }
-            }
-            SubscriptionTier.INDIVIDUAL, SubscriptionTier.FAMILY, SubscriptionTier.TEAM -> {
-                // Full access for paid users
-                true
-            }
-        }
-    }
-    
-    fun getFeatureLimits(subscriptionTier: SubscriptionTier): Map<String, Int> {
-        return when (subscriptionTier) {
-            SubscriptionTier.FREE -> mapOf(
-                "claude_questions_per_week" to 5,
-                "quizzes_per_week" to 3,
-                "workout_plans_saved" to 2
-            )
-            SubscriptionTier.INDIVIDUAL -> mapOf(
-                "claude_questions_per_week" to -1, // unlimited
-                "quizzes_per_week" to -1,
-                "workout_plans_saved" to -1
-            )
-            SubscriptionTier.FAMILY -> mapOf(
-                "claude_questions_per_week" to -1,
-                "quizzes_per_week" to -1,
-                "workout_plans_saved" to -1,
-                "family_members" to 4
-            )
-            SubscriptionTier.TEAM -> mapOf(
-                "claude_questions_per_week" to -1,
-                "quizzes_per_week" to -1,
-                "workout_plans_saved" to -1,
-                "team_members" to 50
-            )
-        }
     }
     
     // Helper methods
@@ -244,6 +146,26 @@ class UserService(
         val currentIndex = tierOrder.indexOf(currentTier)
         val newIndex = tierOrder.indexOf(newTier)
         
-        return newIndex > currentIndex
+        return newIndex >= currentIndex
+    }
+    
+    fun getAllUsers(): List<User> {
+        return userRepository.findAll()
+    }
+    
+    fun getActiveUsers(): List<User> {
+        return userRepository.findByIsActiveTrue()
+    }
+    
+    fun getUsersBySubscriptionTier(tier: SubscriptionTier): List<User> {
+        return userRepository.findBySubscriptionTier(tier)
+    }
+    
+    fun getUsersBySport(sport: Sport): List<User> {
+        return userRepository.findByPrimarySport(sport)
+    }
+    
+    fun getUsersByPosition(position: Position): List<User> {
+        return userRepository.findByPrimaryPosition(position)
     }
 }

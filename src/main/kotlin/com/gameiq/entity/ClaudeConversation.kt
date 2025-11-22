@@ -15,7 +15,7 @@ data class ClaudeConversation(
     val user: User,
     
     @Column(name = "session_id", nullable = false)
-    val sessionId: String, // UUID for grouping related messages
+    val sessionId: String,
     
     @Column(name = "user_message", columnDefinition = "TEXT", nullable = false)
     val userMessage: String,
@@ -48,12 +48,12 @@ data class ClaudeConversation(
     val tokensUsedOutput: Int? = null,
     
     @Column(name = "api_cost_cents")
-    val apiCostCents: Int? = null, // Cost in cents to track expenses
+    val apiCostCents: Int? = null,
     
     @Column(name = "response_time_ms")
     val responseTimeMs: Long? = null,
     
-    @Column(name = "user_rating") // 1-5 rating of helpfulness
+    @Column(name = "user_rating")
     val userRating: Int? = null,
     
     @Column(name = "flagged_inappropriate", nullable = false)
