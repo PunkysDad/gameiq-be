@@ -94,7 +94,7 @@ data class LeaderboardEntry(
 )
 
 @RestController
-@RequestMapping("/api/v1/quizzes")
+@RequestMapping("/quizzes")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class QuizController(
     private val quizService: QuizService

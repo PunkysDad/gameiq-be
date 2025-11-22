@@ -27,7 +27,7 @@ data class ChatResponse(
 )
 
 @RestController
-@RequestMapping("/api/v1/conversations")
+@RequestMapping("/conversations")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class ClaudeConversationController(
     private val claudeService: ClaudeService

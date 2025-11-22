@@ -25,7 +25,7 @@ data class SystemInfoResponse(
 )
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("")
 @CrossOrigin(origins = ["*"]) // Allow all origins for health checks
 class HealthController(
     @Autowired(required = false) private val buildProperties: BuildProperties?

@@ -21,7 +21,7 @@ data class CoachingAnalysisResponse(
 )
 
 @RestController
-@RequestMapping("/api/v1/coaching")
+@RequestMapping("/coaching")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class CoachingController(
     private val claudeService: ClaudeService // Use existing ClaudeService instead
