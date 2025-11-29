@@ -21,7 +21,7 @@ data class User(
     
     @Enumerated(EnumType.STRING)
     @Column(name = "subscription_tier", nullable = false)
-    val subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
+    val subscriptionTier: SubscriptionTier = SubscriptionTier.NONE,
     
     @Enumerated(EnumType.STRING)
     @Column(name = "primary_sport")
@@ -48,7 +48,7 @@ data class User(
 )
 
 enum class SubscriptionTier {
-    FREE, INDIVIDUAL, FAMILY, TEAM
+    NONE, BASIC, PREMIUM
 }
 
 enum class Sport {
