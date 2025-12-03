@@ -28,6 +28,15 @@ data class UserProfileUpdateRequest(
     val age: Int?
 )
 
+data class UserCreateRequest(
+    val email: String,
+    val firebaseUid: String,
+    val displayName: String,
+    val primarySport: String?,
+    val primaryPosition: String?,
+    val age: Int?
+)
+
 data class UserStatsResponse(
     val totalQuizzes: Long,
     val averageScore: Double,
@@ -36,11 +45,56 @@ data class UserStatsResponse(
 )
 
 @RestController
-@RequestMapping("/api/v1/users")
+@RequestMapping("/users")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class UserController(
     private val userService: UserService
 ) {
+    
+    @PostMapping
+    fun createUser(@RequestBody createRequest: UserCreateRequest): ResponseEntity<UserProfileResponse> {
+        return try {
+            // Convert string sport/position to enums
+            val sport = createRequest.primarySport?.let { 
+                try { Sport.valueOf(it.uppercase()) } catch (e: Exception) { null }
+            }
+            val position = createRequest.primaryPosition?.let {
+                try { Position.valueOf(it.uppercase()) } catch (e: Exception) { null }
+            }
+            
+            val user = userService.createUser(
+                email = createRequest.email,
+                firebaseUid = createRequest.firebaseUid,
+                displayName = createRequest.displayName
+            )
+            
+            // Update with additional profile info if provided
+            val updatedUser = if (sport != null || position != null || createRequest.age != null) {
+                userService.updateUserProfile(
+                    userId = user.id,
+                    displayName = user.displayName,
+                    primarySport = sport,
+                    primaryPosition = position,
+                    age = createRequest.age
+                )
+            } else user
+            
+            val response = UserProfileResponse(
+                id = updatedUser.id,
+                firebaseUid = updatedUser.firebaseUid,
+                email = updatedUser.email,
+                displayName = updatedUser.displayName,
+                subscriptionTier = updatedUser.subscriptionTier.name,
+                primarySport = updatedUser.primarySport?.name,
+                primaryPosition = updatedUser.primaryPosition?.name,
+                createdAt = updatedUser.createdAt.toString(),
+                isActive = updatedUser.isActive
+            )
+            ResponseEntity.status(HttpStatus.CREATED).body(response)
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().build()
+        }
+    }
     
     @GetMapping("/{userId}")
     fun getUserProfile(@PathVariable userId: Long): ResponseEntity<UserProfileResponse> {

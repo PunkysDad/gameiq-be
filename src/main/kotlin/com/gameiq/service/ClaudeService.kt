@@ -42,14 +42,19 @@ class ClaudeService(
         position: Position? = null,
         conversationType: ConversationType = ConversationType.GENERAL_SPORTS_QUESTION
     ): ClaudeConversation {
+        println("DEBUG: Starting chatWithClaude for userId: $userId")
+        
         val user = userRepository.findById(userId).orElseThrow { 
             IllegalArgumentException("User not found") 
         }
+        println("DEBUG: User found: ${user.email}")
         
         // Check rate limits for free users
         checkRateLimit(user)
+        println("DEBUG: Rate limit check passed")
         
         val actualSessionId = sessionId ?: UUID.randomUUID().toString()
+        println("DEBUG: Session ID: $actualSessionId")
         
         // Get conversation context if this is part of an ongoing session
         val conversationHistory = if (sessionId != null) {
@@ -57,13 +62,17 @@ class ClaudeService(
         } else {
             emptyList()
         }
+        println("DEBUG: Conversation history size: ${conversationHistory.size}")
         
         // Build system prompt based on sport and position
         val systemPrompt = buildSystemPrompt(sport, position, conversationType)
+        println("DEBUG: System prompt built, length: ${systemPrompt.length}")
         
         // Make API call to Claude
+        println("DEBUG: About to call Claude API")
         val startTime = System.currentTimeMillis()
         val claudeResponse = callClaudeApi(message, systemPrompt, conversationHistory)
+        println("DEBUG: Claude API call completed")
         val responseTime = System.currentTimeMillis() - startTime
         
         // Calculate API cost (approximate)
@@ -86,6 +95,7 @@ class ClaudeService(
             responseTimeMs = responseTime
         )
         
+        println("DEBUG: About to save conversation")
         return claudeConversationRepository.save(conversation)
     }
     
@@ -122,16 +132,53 @@ class ClaudeService(
         return parseQuizResponse(claudeResponse.content)
     }
     
-    // Rate limiting for free users
+    // Rate limiting based on monthly API cost
     private fun checkRateLimit(user: User) {
-        if (user.subscriptionTier == SubscriptionTier.FREE) {
-            val weekStart = LocalDateTime.now().minusDays(7)
-            val weeklyConversations = claudeConversationRepository.countConversationsByUserSince(user, weekStart)
+        when (user.subscriptionTier) {
+            SubscriptionTier.NONE -> {
+                println("DEBUG: User has no active subscription")
+                throw IllegalStateException("Active subscription required. Choose Basic ($9.99) or Premium ($14.99) to start AI coaching.")
+            }
             
-            if (weeklyConversations >= 5) {
-                throw IllegalStateException("Weekly conversation limit exceeded. Upgrade to continue using AI coaching.")
+            SubscriptionTier.BASIC -> {
+                println("DEBUG: User is BASIC tier, checking monthly cost limit")
+                val monthStart = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0)
+                
+                try {
+                    val monthlyCostCents = claudeConversationRepository.getCostByUserSince(user, monthStart) ?: 0
+                    println("DEBUG: Monthly cost in cents: $monthlyCostCents")
+                    
+                    // Basic tier: $3.00 API budget per month = 300 cents (~150 coaching sessions)
+                    if (monthlyCostCents >= 300) {
+                        println("DEBUG: Monthly cost limit exceeded for BASIC: $monthlyCostCents >= 300 cents")
+                        throw IllegalStateException("Monthly AI coaching budget exceeded (\$${monthlyCostCents/100.0}). Upgrade to Premium for higher limits.")
+                    }
+                    println("DEBUG: Monthly cost OK for BASIC: $monthlyCostCents < 300 cents")
+                } catch (e: Exception) {
+                    println("DEBUG: Exception in BASIC cost check: ${e.message}")
+                    throw e
+                }
+            }
+            
+            SubscriptionTier.PREMIUM -> {
+                println("DEBUG: User is PREMIUM tier, checking monthly cost limit")
+                val monthStart = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0)
+                
+                try {
+                    val monthlyCostCents = claudeConversationRepository.getCostByUserSince(user, monthStart) ?: 0
+                    println("DEBUG: Monthly cost in cents: $monthlyCostCents")
+                    
+                    // Premium tier: $10.00 API budget per month = 1000 cents (~500 coaching sessions)
+                    if (monthlyCostCents >= 1000) {
+                        throw IllegalStateException("Monthly usage limit reached (\$${monthlyCostCents/100.0}). Contact support if you need higher limits.")
+                    }
+                } catch (e: Exception) {
+                    throw e
+                }
             }
         }
+        
+        println("DEBUG: Rate limit check completed successfully")
     }
     
     // System prompt builders
@@ -347,9 +394,20 @@ class ClaudeService(
     // Cost calculation
     private fun calculateApiCost(inputTokens: Int, outputTokens: Int): Int {
         // Claude Sonnet 4 pricing: $3 per M input tokens, $15 per M output tokens
-        val inputCostCents = (inputTokens * 0.0003).toInt() // $3/1M = $0.000003 per token
-        val outputCostCents = (outputTokens * 0.0015).toInt() // $15/1M = $0.000015 per token
         
-        return inputCostCents + outputCostCents
+        // Calculate cost in dollars first
+        val inputCostDollars = inputTokens * 0.000003 // $3/1M = $0.000003 per token
+        val outputCostDollars = outputTokens * 0.000015 // $15/1M = $0.000015 per token
+        val totalCostDollars = inputCostDollars + outputCostDollars
+        
+        // Convert to cents and round properly
+        val totalCostCents = kotlin.math.round(totalCostDollars * 100).toInt()
+        
+        println("DEBUG: API Cost Calculation")
+        println("  Input tokens: $inputTokens × \$0.000003 = \$${String.format("%.6f", inputCostDollars)}")
+        println("  Output tokens: $outputTokens × \$0.000015 = \$${String.format("%.6f", outputCostDollars)}")
+        println("  Total cost: \$${String.format("%.6f", totalCostDollars)} = ${totalCostCents} cents")
+        
+        return totalCostCents
     }
 }

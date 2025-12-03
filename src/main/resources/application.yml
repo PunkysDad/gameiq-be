@@ -107,7 +107,7 @@ spring:
     password: ${DB_PASSWORD:gameiq_dev_pass}
     
   flyway:
-    enabled: false
+    enabled: true
   jpa:
     show-sql: true
     hibernate:

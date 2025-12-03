@@ -73,7 +73,7 @@ class CoachingService(
         - Time Remaining: ${situation.context["timeRemaining"]}
         - Quarter: ${situation.context["quarter"]}
         
-        Using historical NFL data and coaching principles, analyze this situation and provide:
+        Using historical NFL and collegiate data and coaching principles, analyze this situation and provide:
         
         1. Your primary strategic recommendation
         2. Success probability based on league historical data
