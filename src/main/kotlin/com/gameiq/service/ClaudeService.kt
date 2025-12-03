@@ -394,9 +394,20 @@ class ClaudeService(
     // Cost calculation
     private fun calculateApiCost(inputTokens: Int, outputTokens: Int): Int {
         // Claude Sonnet 4 pricing: $3 per M input tokens, $15 per M output tokens
-        val inputCostCents = (inputTokens * 0.0003).toInt() // $3/1M = $0.000003 per token
-        val outputCostCents = (outputTokens * 0.0015).toInt() // $15/1M = $0.000015 per token
         
-        return inputCostCents + outputCostCents
+        // Calculate cost in dollars first
+        val inputCostDollars = inputTokens * 0.000003 // $3/1M = $0.000003 per token
+        val outputCostDollars = outputTokens * 0.000015 // $15/1M = $0.000015 per token
+        val totalCostDollars = inputCostDollars + outputCostDollars
+        
+        // Convert to cents and round properly
+        val totalCostCents = kotlin.math.round(totalCostDollars * 100).toInt()
+        
+        println("DEBUG: API Cost Calculation")
+        println("  Input tokens: $inputTokens × \$0.000003 = \$${String.format("%.6f", inputCostDollars)}")
+        println("  Output tokens: $outputTokens × \$0.000015 = \$${String.format("%.6f", outputCostDollars)}")
+        println("  Total cost: \$${String.format("%.6f", totalCostDollars)} = ${totalCostCents} cents")
+        
+        return totalCostCents
     }
 }
