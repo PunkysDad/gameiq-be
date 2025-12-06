@@ -84,3 +84,54 @@ data class LeaderboardEntry(
     val score: Double,
     val sport: Sport
 )
+
+data class GenerateWorkoutRequest(
+    val sport: String,
+    val position: String,
+    val equipmentAvailable: List<String>,
+    val timeAvailable: Int, // in minutes
+    val experience: String, // beginner, intermediate, advanced
+    val goals: List<String> // e.g., ["arm_strength", "mobility", "power"]
+)
+
+data class WorkoutExercise(
+    val name: String,
+    val sets: Int,
+    val reps: String, // "8-12" or "30 seconds" etc.
+    val rest: String, // "60 seconds"
+    val description: String,
+    val positionBenefit: String // Why this helps the specific position
+)
+
+data class GeneratedWorkout(
+    val workoutName: String,
+    val duration: Int,
+    val difficultyLevel: String,
+    val positionFocus: String,
+    val warmUp: List<WorkoutExercise>,
+    val mainExercises: List<WorkoutExercise>,
+    val coolDown: List<WorkoutExercise>,
+    val equipmentUsed: List<String>,
+    val notes: String
+)
+
+data class WorkoutPlanResponse(
+    val id: Long,
+    val sport: String,
+    val position: String,
+    val workoutName: String,
+    val durationMinutes: Int,
+    val difficultyLevel: String,
+    val equipmentNeeded: List<String>,
+    val positionFocus: String,
+    val workout: GeneratedWorkout,
+    val isSaved: Boolean,
+    val createdAt: java.time.LocalDateTime
+)
+
+data class UserWorkoutPreferencesRequest(
+    val availableEquipment: List<String>?,
+    val preferredDuration: Int?,
+    val experienceLevel: String?,
+    val trainingGoals: List<String>?
+)

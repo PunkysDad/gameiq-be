@@ -99,23 +99,6 @@ class ClaudeService(
         return claudeConversationRepository.save(conversation)
     }
     
-    // Position-specific workout plan generation
-    fun generateWorkoutPlan(
-        sport: Sport,
-        position: Position,
-        difficultyLevel: DifficultyLevel,
-        trainingPhase: TrainingPhase,
-        equipmentAvailable: String? = null
-    ): WorkoutContent {
-        val systemPrompt = buildWorkoutPlanPrompt(sport, position, difficultyLevel, trainingPhase)
-        val userPrompt = buildWorkoutPlanUserPrompt(equipmentAvailable)
-        
-        val claudeResponse = callClaudeApi(userPrompt, systemPrompt)
-        
-        // Parse the structured response
-        return parseWorkoutPlanResponse(claudeResponse.content, systemPrompt)
-    }
-    
     // Quiz generation
     fun generateQuiz(
         sport: Sport,
@@ -214,49 +197,157 @@ class ClaudeService(
             ConversationType.INJURY_PREVENTION -> "Emphasize injury prevention and recovery strategies."
             ConversationType.SKILL_DEVELOPMENT -> "Focus on skill development and technique improvement."
             ConversationType.GAME_STRATEGY -> "Provide tactical and strategic insights."
-            ConversationType.WORKOUT_CUSTOMIZATION -> "Help customize workouts for specific needs."
+            ConversationType.WORKOUT_CUSTOMIZATION -> buildWorkoutCustomizationPrompt(sport, position) // Add this line
             ConversationType.GENERAL_SPORTS_QUESTION -> "Answer general sports and training questions."
         }
         
         return "$basePrompt\n\n$sportSpecific\n$positionSpecific\n$conversationSpecific"
     }
     
-    private fun buildWorkoutPlanPrompt(
-        sport: Sport, 
-        position: Position, 
-        difficultyLevel: DifficultyLevel, 
-        trainingPhase: TrainingPhase
-    ): String {
+    private fun buildWorkoutCustomizationPrompt(sport: Sport?, position: Position?): String {
+        val sportName = sport?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Sports"
+        val positionName = position?.name?.lowercase()?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: "athlete"
+        
         return """
-        You are an expert strength and conditioning coach specializing in $sport training for $position players.
-        
-        Create a detailed workout plan with these specifications:
-        - Sport: $sport
-        - Position: $position  
-        - Difficulty: $difficultyLevel
-        - Training Phase: $trainingPhase
-        
-        Return your response as a JSON object with this exact structure:
+        You are an elite $sportName strength and conditioning coach specializing in $positionName training.
+        Create a position-specific workout plan that directly improves the athlete's performance in their specific position.
+
+        CRITICAL: Respond ONLY with valid JSON in the exact format specified below. No additional text, explanations, or markdown.
+
+        POSITION-SPECIFIC REQUIREMENTS for $positionName in $sportName:
+        ${getPositionSpecificRequirements(sport, position)}
+
+        The user will provide their equipment, time available, experience level, and goals.
+        Create a workout that:
+        1. Addresses the specific physical demands of this position
+        2. Improves performance metrics that matter for recruiting/scouting
+        3. Uses only the available equipment mentioned by the user
+        4. Fits within the time constraint specified
+        5. Matches the athlete's experience level
+        6. Includes position-specific movement patterns
+
+        Return ONLY valid JSON in this exact structure:
         {
-          "exercises": [
+        "workout_name": "Position-specific name (e.g., 'QB Pocket Mobility & Arm Strength - Week 1')",
+        "duration": [TIME_FROM_USER_REQUEST],
+        "difficulty_level": "[USER_EXPERIENCE_LEVEL]",
+        "position_focus": "2-3 sentence explanation of how this workout improves position performance",
+        "warm_up": [
             {
-              "name": "Exercise name",
-              "sets": 3,
-              "reps": "8-12",
-              "restSeconds": 60,
-              "description": "How to perform the exercise",
-              "positionBenefit": "How this helps the specific position"
+            "name": "Exercise name",
+            "sets": 1,
+            "reps": "5-10 or 30 seconds",
+            "rest": "30 seconds",
+            "description": "How to perform the exercise",
+            "position_benefit": "Why this helps the specific position"
             }
-          ],
-          "equipmentNeeded": "List of required equipment",
-          "focusAreas": "Primary muscle groups and skills targeted",
-          "estimatedDuration": 45,
-          "warmup": "Warm-up routine description",
-          "cooldown": "Cool-down routine description"
+        ],
+        "main_exercises": [
+            {
+            "name": "Exercise name",
+            "sets": 3,
+            "reps": "8-12 or specific instruction",
+            "rest": "60-90 seconds",
+            "description": "Detailed form instructions",
+            "position_benefit": "Specific benefit for this position"
+            }
+        ],
+        "cool_down": [
+            {
+            "name": "Exercise name", 
+            "sets": 1,
+            "reps": "30 seconds or specific instruction",
+            "rest": "None",
+            "description": "How to perform",
+            "position_benefit": "Recovery/mobility benefit for position"
+            }
+        ],
+        "equipment_used": ["list", "of", "equipment", "from", "user"],
+        "notes": "Important form cues, progression tips, or position-specific advice"
         }
-        
-        Focus on exercises that are specifically beneficial for $position players in $sport.
         """.trimIndent()
+    }
+
+    private fun getPositionSpecificRequirements(sport: Sport?, position: Position?): String {
+        return when (sport) {
+            Sport.FOOTBALL -> when (position) {
+                Position.QUARTERBACK -> """
+                - Arm strength and shoulder stability for accurate throws under pressure
+                - Pocket mobility and hip flexibility for movement while maintaining throwing posture
+                - Core strength for throwing power and stability during contact
+                - Quick feet and change of direction for escaping pressure
+                - Mental processing speed through reaction drills
+                - Rotational power for deep ball accuracy
+                """.trimIndent()
+                Position.RUNNING_BACK -> """
+                - Explosive lower body power for cutting and acceleration
+                - Core stability for contact absorption and balance through tackles
+                - Agility and change of direction speed for avoiding defenders
+                - Hand-eye coordination for catching passes out of backfield
+                - Functional strength for breaking tackles and pushing through contact
+                """.trimIndent()
+                Position.WIDE_RECEIVER -> """
+                - Route running precision through agility and cutting drills
+                - Hand-eye coordination and catching mechanics under pressure
+                - Explosive starts and acceleration off the line
+                - Hip flexibility and mobility for sharp route cuts
+                - Vertical jumping power and timing for contested catches
+                """.trimIndent()
+                else -> "Focus on football position-specific movement patterns and performance requirements"
+            }
+            Sport.BASKETBALL -> when (position) {
+                Position.POINT_GUARD -> """
+                - Ball handling strength and coordination for pressure situations
+                - First-step quickness and lateral agility for creating space
+                - Core stability for contact finishing at the rim
+                - Court vision development through reaction training
+                - Endurance for full-court pressure and extended minutes
+                """.trimIndent()
+                Position.CENTER -> """
+                - Lower body power for post moves and rebounding position
+                - Upper body strength for contact situations in the paint
+                - Vertical jumping power and proper landing mechanics
+                - Core stability for physical play and maintaining position
+                - Footwork patterns specific to post play and rim protection
+                """.trimIndent()
+                else -> "Focus on basketball position-specific movement patterns and skills"
+            }
+            Sport.BASEBALL -> when (position) {
+                Position.PITCHER -> """
+                - Arm care and rotator cuff strengthening for velocity and durability
+                - Lower body power for velocity generation through proper mechanics
+                - Core rotation strength for efficient energy transfer in throwing
+                - Hip mobility and flexibility for proper pitching mechanics
+                - Scapular stability and control for injury prevention
+                """.trimIndent()
+                Position.CATCHER -> """
+                - Hip and ankle mobility for comfortable catching stance
+                - Core stability for blocking pitches and framing strikes
+                - Arm strength and quick release for throwing out base stealers
+                - Leg strength for repeated squatting throughout games
+                - Hand-eye coordination for pitch framing
+                """.trimIndent()
+                else -> "Focus on baseball position-specific movement patterns and skills"
+            }
+            Sport.SOCCER -> when (position) {
+                Position.GOALKEEPER -> """
+                - Diving mechanics and reaction training for shot stopping
+                - Hand-eye coordination for catching and parrying shots
+                - Leg power for distribution kicks and goal kicks
+                - Core stability for diving saves and shot stopping
+                - Agility and quick position changes for one-on-one situations
+                """.trimIndent()
+                Position.MIDFIELDER -> """
+                - Endurance for box-to-box play and covering ground
+                - Passing accuracy through core stability and body positioning
+                - First touch control and ball manipulation skills
+                - Change of direction agility for tight spaces
+                - Shooting power and accuracy from various distances
+                """.trimIndent()
+                else -> "Focus on soccer position-specific movement patterns and skills"
+            }
+            else -> "Focus on sport-specific movement patterns and performance requirements for the athlete's position"
+        }
     }
     
     private fun buildQuizGenerationPrompt(

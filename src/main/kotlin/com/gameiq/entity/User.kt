@@ -52,22 +52,95 @@ enum class SubscriptionTier {
 }
 
 enum class Sport {
-    FOOTBALL, BASKETBALL, BASEBALL, SOCCER, HOCKEY
+    FOOTBALL,
+    BASKETBALL, 
+    BASEBALL,
+    SOCCER;
+    
+    companion object {
+        fun fromString(sport: String): Sport {
+            return valueOf(sport.uppercase())
+        }
+    }
 }
 
 enum class Position {
     // Football positions
-    QB, RB, WR, OL, TE, LB, DB, DL,
+    QUARTERBACK,
+    RUNNING_BACK,
+    WIDE_RECEIVER,
+    TIGHT_END,
+    OFFENSIVE_LINE,
+    LINEBACKER,
+    DEFENSIVE_BACK,
+    DEFENSIVE_LINE,
     
-    // Basketball positions
-    PG, SG, SF, PF, C,
+    // Basketball positions  
+    POINT_GUARD,
+    SHOOTING_GUARD,
+    SMALL_FORWARD,
+    POWER_FORWARD,
+    CENTER,
     
     // Baseball positions
-    PITCHER, CATCHER, INFIELD, OUTFIELD,
+    PITCHER,
+    CATCHER,
+    INFIELD,
+    OUTFIELD,
     
     // Soccer positions
-    GOALKEEPER, DEFENDER, MIDFIELDER, FORWARD,
+    GOALKEEPER,
+    DEFENDER,
+    MIDFIELDER,
+    FORWARD;
     
-    // Hockey positions
-    CENTER, WINGER, DEFENSEMAN, GOALIE
+    companion object {
+        fun fromString(position: String): Position {
+            // Handle common variations
+            val normalized = when (position.lowercase().replace("-", "_").replace(" ", "_")) {
+                "qb" -> "quarterback"
+                "rb" -> "running_back"
+                "wr" -> "wide_receiver"
+                "te" -> "tight_end"
+                "ol" -> "offensive_line"
+                "lb" -> "linebacker"
+                "db" -> "defensive_back"
+                "dl" -> "defensive_line"
+                "pg" -> "point_guard"
+                "sg" -> "shooting_guard"
+                "sf" -> "small_forward"
+                "pf" -> "power_forward"
+                "c" -> "center"
+                "goalie" -> "goalkeeper"
+                else -> position.lowercase().replace("-", "_").replace(" ", "_")
+            }
+            
+            return valueOf(normalized.uppercase())
+        }
+    }
+}
+
+enum class DifficultyLevel {
+    BEGINNER,
+    INTERMEDIATE, 
+    ADVANCED;
+    
+    companion object {
+        fun fromString(level: String): DifficultyLevel {
+            return valueOf(level.uppercase())
+        }
+    }
+}
+
+enum class TrainingPhase {
+    OFF_SEASON,
+    PRE_SEASON,
+    IN_SEASON,
+    POST_SEASON;
+    
+    companion object {
+        fun fromString(phase: String): TrainingPhase {
+            return valueOf(phase.uppercase().replace("-", "_"))
+        }
+    }
 }
