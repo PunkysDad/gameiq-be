@@ -40,11 +40,11 @@ data class GeneratedQuiz(
     val position: Position?,
     val quizType: QuizType,
     val difficultyLevel: DifficultyLevel,
-    val questions: List<QuizQuestion>,
+    val questions: List<QuizQuestionData>,
     val title: String
 )
 
-data class QuizQuestion(
+data class QuizQuestionData(
     val question: String,
     val options: List<String>,
     val correctAnswer: Int,
@@ -83,4 +83,60 @@ data class LeaderboardEntry(
     val user: User,
     val score: Double,
     val sport: Sport
+)
+
+// Quiz system request/response DTOs
+data class QuizAnswer(
+    val questionId: Long,
+    val selectedAnswer: String,
+    val timeTaken: Int? = null
+)
+
+data class SubmitQuizRequest(
+    val answers: List<QuizAnswer>,
+    val totalTimeTaken: Int? = null
+)
+
+data class QuizSessionSummary(
+    val session: QuizSession,
+    val attempts: List<QuizSessionAttempt>,
+    val totalAttempts: Int,
+    val bestScore: Int,
+    val latestScore: Int,
+    val passed: Boolean
+)
+
+data class QuizQuestionResponse(
+    val id: Long,
+    val questionNumber: Int, // 1-15 position in quiz
+    val scenario: String,
+    val question: String,
+    val options: Map<String, String>, // e.g., {"A": "Option A text", "B": "Option B text"}
+    val difficulty: String,
+    val tags: List<String>
+)
+
+data class QuizSessionResponse(
+    val sessionId: Long,
+    val sessionName: String,
+    val sport: String,
+    val position: String,
+    val quizType: String,
+    val questions: List<QuizQuestionResponse>,
+    val totalQuestions: Int,
+    val isCompleted: Boolean,
+    val bestScore: Int,
+    val totalAttempts: Int,
+    val passed: Boolean
+)
+
+data class QuizAttemptDetail(
+    val attempt: QuizSessionAttempt,
+    val questionResults: List<QuizSessionQuestionResult>
+)
+
+data class QuizAttemptSession(
+    val quizSession: QuizSession,
+    val questions: List<com.gameiq.entity.QuizQuestion>,
+    val attemptNumber: Int
 )

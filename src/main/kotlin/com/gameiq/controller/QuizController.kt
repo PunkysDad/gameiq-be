@@ -1,190 +1,213 @@
 package com.gameiq.controller
 
-import com.gameiq.service.QuizService
-import com.gameiq.entity.* // Import entities which contain the enums
+import com.gameiq.entity.*
+import com.gameiq.service.*
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import org.springframework.http.HttpStatus
-
-data class QuizRequest(
-    val sport: String,
-    val position: String? = null,
-    val quizType: String,
-    val difficultyLevel: String,
-    val questionCount: Int = 10
-)
-
-data class QuizSubmissionRequest(
-    val quizId: String, // Generated quiz identifier
-    val userAnswers: List<Int>, // Selected answer indices
-    val timeTakenSeconds: Int?
-)
-
-data class QuizResultResponse(
-    val quizId: Long,
-    val sport: String,
-    val position: String?,
-    val quizType: String,
-    val score: Int,
-    val totalQuestions: Int,
-    val scorePercentage: Double,
-    val timeTakenSeconds: Int?,
-    val completedAt: String,
-    val correctAnswers: List<Int>,
-    val explanations: List<String>
-)
-
-data class LeaderboardResponse(
-    val rank: Int,
-    val userId: Long,
-    val displayName: String?,
-    val sport: String,
-    val averageScore: Double,
-    val totalQuizzes: Long
-)
-
-// Add missing data classes that the controller expects
-data class GeneratedQuiz(
-    val sport: Sport,
-    val position: Position?,
-    val quizType: QuizType,
-    val difficultyLevel: DifficultyLevel,
-    val questions: List<QuizQuestion>,
-    val title: String
-)
-
-data class QuizQuestion(
-    val question: String,
-    val options: List<String>,
-    val correctAnswer: Int,
-    val explanation: String
-)
-
-data class QuizStats(
-    val totalQuizzesCompleted: Long,
-    val averageScore: Double,
-    val bestScore: Double,
-    val averageTimeSeconds: Double?,
-    val currentStreak: Int,
-    val improvementTrend: Double
-)
-
-data class SportQuizStats(
-    val sport: Sport,
-    val averageScore: Double,
-    val totalQuizzes: Long,
-    val performanceByQuizType: Map<QuizType, Double>
-)
-
-data class ShareableQuizContent(
-    val title: String,
-    val score: String,
-    val scoreLevel: String,
-    val sport: Sport,
-    val position: Position?,
-    val challengeText: String,
-    val quizType: QuizType
-)
-
-data class LeaderboardEntry(
-    val rank: Int,
-    val user: User,
-    val score: Double,
-    val sport: Sport
-)
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @RestController
-@RequestMapping("/quizzes")
-@CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
+@RequestMapping("/quiz")
 class QuizController(
     private val quizService: QuizService
 ) {
-    
-    @PostMapping("/generate")
-    fun generateQuiz(
-        @RequestParam userId: Long,
-        @RequestBody request: QuizRequest
-    ): ResponseEntity<GeneratedQuiz> {
-        return try {
-            // Simplified approach - use existing ClaudeService for quiz generation
-            val sport = Sport.valueOf(request.sport.uppercase())
-            val position = request.position?.let { Position.valueOf(it.uppercase()) }
-            val quizType = QuizType.valueOf(request.quizType.uppercase())
-            val difficultyLevel = DifficultyLevel.valueOf(request.difficultyLevel.uppercase())
-            
-            // Create a simple generated quiz (you can enhance this later)
-            val quiz = GeneratedQuiz(
-                sport = sport,
-                position = position,
-                quizType = quizType,
-                difficultyLevel = difficultyLevel,
-                questions = listOf(
-                    QuizQuestion(
-                        question = "Sample ${sport.name} question for ${position?.name ?: "general"} position",
-                        options = listOf("Option A", "Option B", "Option C", "Option D"),
-                        correctAnswer = 0,
-                        explanation = "This is a sample explanation"
-                    )
-                ),
-                title = "${sport.name} ${quizType.name} Quiz"
-            )
-            
-            ResponseEntity.ok(quiz)
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+
+    // 1. CREATE OR GET A QUIZ (15 questions for sport/position)
+    @PostMapping("/create")
+    fun createOrGetCoreQuiz(
+        @RequestBody request: CreateQuizRequest
+    ): ResponseEntity<QuizSession> {
+        val quiz = quizService.createOrGetCoreQuiz(
+            userId = request.userId,
+            sport = request.sport,
+            position = request.position
+        )
+        return ResponseEntity.ok(quiz)
     }
-    
-    @GetMapping("/user/{userId}/results")
-    fun getUserQuizResults(
+
+    // 2. START A QUIZ ATTEMPT (get the 15 questions)
+    @PostMapping("/start")
+    fun startQuizAttempt(
+        @RequestBody request: StartQuizRequest
+    ): ResponseEntity<QuizAttemptSession> {
+        val attemptSession = quizService.startQuizAttempt(
+            userId = request.userId,
+            quizSessionId = request.quizSessionId
+        )
+        return ResponseEntity.ok(attemptSession)
+    }
+
+    // 3. SUBMIT COMPLETE QUIZ ATTEMPT (all 15 answers)
+    @PostMapping("/submit")
+    fun submitQuizAttempt(
+        @RequestBody request: SubmitQuizRequest
+    ): ResponseEntity<QuizSessionAttempt> {
+        val result = quizService.submitQuizAttempt(
+            userId = request.userId,
+            quizSessionId = request.quizSessionId,
+            answers = request.answers,
+            totalTimeTaken = request.totalTimeTaken
+        )
+        return ResponseEntity.ok(result)
+    }
+
+    // 4. GET QUIZ RESULTS - Summary view with filtering
+    @GetMapping("/results/{userId}")
+    fun getQuizResults(
         @PathVariable userId: Long,
         @RequestParam(required = false) sport: String?,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int
-    ): ResponseEntity<List<QuizResultResponse>> {
-        return try {
-            // Simplified - return empty list for now
-            // This would use actual QuizService methods when they exist
-            ResponseEntity.ok(emptyList<QuizResultResponse>())
-        } catch (e: Exception) {
-            ResponseEntity.badRequest().build()
+        @RequestParam(required = false) position: String?,
+        @RequestParam(required = false) minScore: Int?,
+        @RequestParam(required = false) fromDate: String?, // ISO date string
+        @RequestParam(required = false) toDate: String?    // ISO date string
+    ): ResponseEntity<List<QuizSessionSummary>> {
+        var results = quizService.getQuizSessions(userId, sport, position, minScore)
+        
+        // Filter by date range if provided
+        if (fromDate != null || toDate != null) {
+            val fromInstant = fromDate?.let { 
+                LocalDate.parse(it).atStartOfDay(ZoneId.systemDefault()).toInstant() 
+            }
+            val toInstant = toDate?.let { 
+                LocalDate.parse(it).plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant() 
+            }
+            
+            results = results.filter { summary ->
+                val attempts = summary.attempts.filter { attempt ->
+                    val completedAt = attempt.completedAt
+                    (fromInstant == null || completedAt.isAfter(fromInstant) || completedAt == fromInstant) &&
+                    (toInstant == null || completedAt.isBefore(toInstant))
+                }
+                attempts.isNotEmpty()
+            }.map { summary ->
+                summary.copy(attempts = summary.attempts.filter { attempt ->
+                    val completedAt = attempt.completedAt
+                    (fromInstant == null || completedAt.isAfter(fromInstant) || completedAt == fromInstant) &&
+                    (toInstant == null || completedAt.isBefore(toInstant))
+                })
+            }
         }
+        
+        return ResponseEntity.ok(results)
     }
-    
-    @GetMapping("/user/{userId}/stats")
-    fun getUserQuizStats(@PathVariable userId: Long): ResponseEntity<QuizStats> {
-        return try {
-            val stats = QuizStats(
-                totalQuizzesCompleted = 0,
-                averageScore = 0.0,
-                bestScore = 0.0,
-                averageTimeSeconds = null,
-                currentStreak = 0,
-                improvementTrend = 0.0
-            )
-            ResponseEntity.ok(stats)
-        } catch (e: Exception) {
-            ResponseEntity.notFound().build()
-        }
+
+    // 5. GET DETAILED QUIZ ATTEMPT (individual questions and answers)
+    @GetMapping("/attempt/{attemptId}/detail")
+    fun getQuizAttemptDetail(
+        @PathVariable attemptId: Long,
+        @RequestParam userId: Long
+    ): ResponseEntity<QuizAttemptDetail> {
+        val detail = quizService.getQuizAttemptDetail(userId, attemptId)
+        return ResponseEntity.ok(detail)
     }
-    
-    @GetMapping("/available-options")
-    fun getAvailableQuizOptions(): ResponseEntity<Map<String, List<String>>> {
-        return ResponseEntity.ok(mapOf(
-            "sports" to Sport.values().map { it.name },
-            "quizTypes" to QuizType.values().map { it.name },
-            "difficultyLevels" to DifficultyLevel.values().map { it.name },
-            "positions" to Position.values().map { it.name }
-        ))
+
+    // 6. CHECK IF USER CAN GENERATE NEW QUIZ
+    @GetMapping("/can-generate")
+    fun canGenerateNewQuiz(
+        @RequestParam userId: Long,
+        @RequestParam sport: String,
+        @RequestParam position: String
+    ): ResponseEntity<CanGenerateResponse> {
+        val canGenerate = quizService.canGenerateNewQuiz(userId, sport, position)
+        return ResponseEntity.ok(CanGenerateResponse(canGenerate))
     }
-    
-    @PostMapping("/test")
-    fun testQuizController(): ResponseEntity<Map<String, String>> {
-        return ResponseEntity.ok(mapOf(
-            "message" to "Quiz controller is working",
-            "availableSports" to Sport.values().joinToString(", ")
-        ))
+
+    // 7. GENERATE NEW QUIZ (only after passing previous with 70%+)
+    @PostMapping("/generate")
+    fun generateNewQuiz(
+        @RequestBody request: GenerateNewQuizRequest
+    ): ResponseEntity<QuizSession> {
+        val newQuiz = quizService.generateNewQuiz(
+            userId = request.userId,
+            sport = request.sport,
+            position = request.position
+        )
+        return ResponseEntity.ok(newQuiz)
+    }
+
+    // GET USER'S ALL QUIZ SESSIONS (overview)
+    @GetMapping("/sessions/{userId}")
+    fun getUserQuizSessions(
+        @PathVariable userId: Long
+    ): ResponseEntity<List<QuizSessionSummary>> {
+        val sessions = quizService.getQuizSessions(userId)
+        return ResponseEntity.ok(sessions)
+    }
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgument(e: IllegalArgumentException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.badRequest().body(ErrorResponse(e.message ?: "Invalid request"))
+    }
+
+    @ExceptionHandler(Exception::class)
+    fun handleGeneralException(e: Exception): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(ErrorResponse("An error occurred: ${e.message}"))
     }
 }
+
+// Request/Response DTOs
+data class CreateQuizRequest(
+    val userId: Long,
+    val sport: String,
+    val position: String
+)
+
+data class StartQuizRequest(
+    val userId: Long,
+    val quizSessionId: Long
+)
+
+data class SubmitQuizRequest(
+    val userId: Long,
+    val quizSessionId: Long,
+    val answers: List<QuizAnswer>, // List of 15 answers
+    val totalTimeTaken: Int? = null // Total time for entire quiz
+)
+
+data class GenerateNewQuizRequest(
+    val userId: Long,
+    val sport: String,
+    val position: String
+)
+
+data class CanGenerateResponse(
+    val canGenerate: Boolean
+)
+
+data class ErrorResponse(
+    val message: String
+)
+
+// Request/Response DTOs
+data class GenerateQuizRequest(
+    val userId: Long,
+    val sport: String,
+    val position: String,
+    val categoryName: String? = null,
+    val difficulty: QuizDifficulty? = null,
+    val questionCount: Int? = 5
+)
+
+data class SubmitAnswerRequest(
+    val userId: Long,
+    val questionId: Long,
+    val answerSelected: String,
+    val timeTaken: Int? = null
+)
+
+data class TagQuizResultRequest(
+    val userId: Long,
+    val quizResultId: Long,
+    val tagNames: List<String>
+)
+
+// data class ShareQuizResultRequest(
+//     val userId: Long,
+//     val quizResultId: Long,
+//     val platform: SocialPlatform,
+//     val shareData: Map<String, Any>? = null
+// )

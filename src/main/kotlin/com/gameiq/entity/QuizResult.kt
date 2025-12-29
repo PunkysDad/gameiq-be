@@ -14,9 +14,19 @@ data class QuizResult(
     @JoinColumn(name = "user_id", nullable = false)
     val user: User,
     
+    // Keep existing question_id for backwards compatibility
+    @Column(name = "question_id")
+    val questionId: Long? = null,
+    
+    // Add relationship mapping that QuizQuestion expects
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "question_id", insertable = false, updatable = false)
+    val question: QuizQuestion? = null,
+    
+    // New fields from your updated schema
     @Enumerated(EnumType.STRING)
-    @Column(name = "sport", nullable = false)
-    val sport: Sport,
+    @Column(name = "sport")
+    val sport: Sport? = null,
     
     @Enumerated(EnumType.STRING)
     @Column(name = "position")
@@ -44,8 +54,16 @@ data class QuizResult(
     @Column(name = "score_percentage", nullable = false)
     val scorePercentage: Double, // calculated field: (correctAnswers/totalQuestions) * 100
     
+    // Keep original score field for backwards compatibility
+    @Column(name = "score", nullable = false)
+    val score: Int = correctAnswers,
+    
     @Column(name = "time_taken_seconds")
     val timeTakenSeconds: Int? = null,
+    
+    // Keep original time_taken for backwards compatibility
+    @Column(name = "time_taken")
+    val timeTaken: Int? = timeTakenSeconds,
     
     @Column(name = "difficulty_level", nullable = false)
     @Enumerated(EnumType.STRING)
@@ -60,18 +78,20 @@ data class QuizResult(
     @Column(name = "shared_to_tiktok", nullable = false)
     val sharedToTiktok: Boolean = false,
     
+    @Column(name = "answer_selected", nullable = false)
+    val answerSelected: String = "", // Keep for backwards compatibility
+    
+    @Column(name = "is_correct", nullable = false)
+    val isCorrect: Boolean = false, // Keep for backwards compatibility
+    
     @Column(name = "completed_at", nullable = false)
     val completedAt: LocalDateTime = LocalDateTime.now(),
     
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now()
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+    
+    @Column(name = "updated_at")
+    val updatedAt: LocalDateTime? = null
 )
 
-enum class QuizType {
-    FORMATION_RECOGNITION,
-    PLAY_CALLING,
-    TACTICAL_DECISION,
-    POSITION_KNOWLEDGE,
-    RULES_AND_REGULATIONS,
-    GAME_SITUATION
-}
+// Note: QuizType and DifficultyLevel enums are defined elsewhere in the project
