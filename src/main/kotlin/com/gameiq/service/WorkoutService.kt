@@ -2,7 +2,6 @@ package com.gameiq.service
 
 import com.gameiq.entity.*
 import com.gameiq.repository.WorkoutPlanRepository
-import com.gameiq.repository.WorkoutSessionRepository  
 import com.gameiq.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,51 +11,144 @@ import java.time.LocalDateTime
 @Transactional
 class WorkoutService(
     private val workoutPlanRepository: WorkoutPlanRepository,
-    private val workoutSessionRepository: WorkoutSessionRepository,
     private val userRepository: UserRepository,
     private val claudeService: ClaudeService
 ) {
     
-    // Workout Plan Creation
+    // Enhanced workout plan creation with Claude integration
     fun createWorkoutPlan(
         userId: Long,
         title: String,
         sport: Sport,
         position: Position,
-        difficultyLevel: DifficultyLevel,
-        trainingPhase: TrainingPhase,
+        difficultyLevel: String, // String from our entity alignment
+        trainingPhase: String,   // String for simplicity
         description: String? = null,
         equipmentAvailable: String? = null
     ): WorkoutPlan {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
+        // Convert string parameters back to enums for Claude API
+        val difficultyLevelEnum = when (difficultyLevel.uppercase()) {
+            "BEGINNER" -> DifficultyLevel.BEGINNER
+            "INTERMEDIATE" -> DifficultyLevel.INTERMEDIATE
+            "ADVANCED" -> DifficultyLevel.ADVANCED
+            "ELITE" -> DifficultyLevel.ELITE
+            else -> DifficultyLevel.INTERMEDIATE // Default fallback
         }
         
-        // Generate workout plan using Claude
-        val workoutContent = claudeService.generateWorkoutPlan(
-            sport = sport,
-            position = position,
-            difficultyLevel = difficultyLevel,
-            trainingPhase = trainingPhase,
-            equipmentAvailable = equipmentAvailable
-        )
+        val trainingPhaseEnum = when (trainingPhase.uppercase()) {
+            "OFF_SEASON" -> TrainingPhase.OFF_SEASON
+            "PRE_SEASON" -> TrainingPhase.PRE_SEASON
+            "IN_SEASON" -> TrainingPhase.IN_SEASON
+            "POST_SEASON" -> TrainingPhase.POST_SEASON
+            "INJURY_PREVENTION" -> TrainingPhase.INJURY_PREVENTION
+            "REHABILITATION" -> TrainingPhase.REHABILITATION
+            "GENERAL" -> TrainingPhase.GENERAL
+            else -> TrainingPhase.GENERAL // Default fallback
+        }
         
-        val workoutPlan = WorkoutPlan(
-            user = user,
-            title = title,
-            description = description,
-            sport = sport,
-            position = position,
-            difficultyLevel = difficultyLevel,
-            trainingPhase = trainingPhase,
-            equipmentNeeded = workoutContent.equipmentNeeded,
-            exercisesJson = workoutContent.exercisesJson,
-            focusAreas = workoutContent.focusAreas,
-            estimatedDurationMinutes = workoutContent.estimatedDuration,
-            claudePromptUsed = workoutContent.promptUsed
-        )
+        return try {
+            // Generate workout using Claude with enhanced prompt
+            // ClaudeService now handles user lookup and database saving
+            claudeService.generateWorkoutPlan(
+                userId = userId, // FIX: Add missing userId parameter
+                sport = sport,
+                position = position,
+                difficultyLevel = difficultyLevelEnum,
+                trainingPhase = trainingPhaseEnum,
+                equipmentAvailable = equipmentAvailable
+            )
+            // FIX: No need for manual WorkoutPlan creation - ClaudeService handles it
+            
+        } catch (e: Exception) {
+            // Fallback to basic workout if Claude API fails
+            println("Claude API failed, creating fallback workout: ${e.message}")
+            
+            val user = userRepository.findById(userId).orElseThrow { 
+                IllegalArgumentException("User not found") 
+            }
+            
+            val fallbackWorkout = WorkoutPlan(
+                user = user,
+                sport = sport,
+                position = position,
+                workoutName = "$title (Basic)",
+                positionFocus = description,
+                difficultyLevel = difficultyLevel,
+                equipmentNeeded = equipmentAvailable,
+                generatedContent = createFallbackWorkout(sport, position, difficultyLevel),
+                isSaved = false,
+                createdAt = LocalDateTime.now(),
+                updatedAt = LocalDateTime.now()
+            )
+            
+            workoutPlanRepository.save(fallbackWorkout)
+        }
+    }
+    
+    // Format Claude workout content for storage
+    // private fun formatWorkoutContent(workoutContent: WorkoutContent): String {
+    //     // Use the enhanced content if available, otherwise fall back to original format
+    //     return workoutContent.enhancedContent?.let { enhancedContent ->
+    //         buildString {
+    //             appendLine("=== GAMEIQ AI-GENERATED WORKOUT ===")
+    //             appendLine()
+    //             appendLine(enhancedContent)
+    //             appendLine()
+    //             appendLine("=== TECHNICAL DETAILS ===")
+    //             appendLine("Equipment: ${workoutContent.equipmentNeeded}")
+    //             appendLine("Focus Areas: ${workoutContent.focusAreas}")
+    //             appendLine("Duration: ${workoutContent.estimatedDuration} minutes")
+    //             appendLine("Generated with enhanced GameIQ position-specific prompts")
+    //         }
+    //     } ?: run {
+    //         // Fallback to original format if enhanced content not available
+    //         buildString {
+    //             appendLine("=== CLAUDE-GENERATED WORKOUT ===")
+    //             appendLine()
+                
+    //             workoutContent.equipmentNeeded?.let {
+    //                 appendLine("Equipment: $it")
+    //                 appendLine()
+    //             }
+                
+    //             workoutContent.focusAreas?.let {
+    //                 appendLine("Focus Areas: $it")
+    //                 appendLine()
+    //             }
+                
+    //             appendLine("Exercises:")
+    //             appendLine(workoutContent.exercisesJson)
+    //             appendLine()
+                
+    //             workoutContent.estimatedDuration?.let {
+    //                 appendLine("Estimated Duration: $it minutes")
+    //                 appendLine()
+    //             }
+                
+    //             appendLine("--- Technical Info ---")
+    //             appendLine("Generated using: ${workoutContent.promptUsed?.take(100)}...")
+    //         }
+    //     }
+    // }
+    
+    // Fallback workout for when Claude API fails
+    private fun createFallbackWorkout(sport: Sport, position: Position, difficultyLevel: String): String {
+        return """
+        === BASIC ${sport.name} ${position.name} WORKOUT ($difficultyLevel) ===
         
-        return workoutPlanRepository.save(workoutPlan)
+        This is a basic workout template. For AI-powered, position-specific training, 
+        please ensure your Claude API is properly configured.
+        
+        Basic Exercises:
+        1. Dynamic Warm-up - 10 minutes
+        2. Sport-specific movements - 20 minutes  
+        3. Strength training - 15 minutes
+        4. Cool-down and stretching - 10 minutes
+        
+        Total Duration: ~55 minutes
+        
+        Note: This workout was generated as a fallback when the AI system was unavailable.
+        """.trimIndent()
     }
     
     // Get workout plans for user
@@ -68,205 +160,33 @@ class WorkoutService(
         return workoutPlanRepository.findById(planId).orElse(null)
     }
     
-    // Position-specific recommendations
-    fun getRecommendedWorkoutPlans(
-        userId: Long,
-        sport: Sport,
-        position: Position,
-        difficultyLevel: DifficultyLevel? = null
-    ): List<WorkoutPlan> {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
-        }
+    // Save/unsave workout functionality
+    fun saveWorkout(workoutId: Long, userId: Long): WorkoutPlan? {
+        val workout = workoutPlanRepository.findById(workoutId).orElse(null)
         
-        val allPlans = if (difficultyLevel != null) {
-            workoutPlanRepository.findBySportAndPositionAndDifficultyLevel(sport, position, difficultyLevel)
+        return if (workout != null && workout.user.id == userId) {
+            val savedWorkout = workout.copy(
+                isSaved = true,
+                updatedAt = LocalDateTime.now()
+            )
+            workoutPlanRepository.save(savedWorkout)
         } else {
-            workoutPlanRepository.findBySportAndPosition(sport, position)
+            null
         }
-        
-        // Filter out user's own plans
-        return allPlans.filter { plan -> plan.user.id != userId }
     }
     
-    fun getPopularWorkoutPlans(sport: Sport? = null): List<WorkoutPlan> {
-        val popularPlans = workoutPlanRepository.findMostPopularPlans()
+    fun deleteWorkout(workoutId: Long, userId: Long) {
+        val workout = workoutPlanRepository.findById(workoutId).orElse(null)
         
-        return if (sport != null) {
-            popularPlans.filter { plan -> plan.sport == sport }
+        if (workout != null && workout.user.id == userId) {
+            workoutPlanRepository.delete(workout)
         } else {
-            popularPlans
+            throw IllegalArgumentException("Workout not found or does not belong to user")
         }
     }
     
-    // Workout Session Management
-    fun startWorkoutSession(userId: Long, workoutPlanId: Long): WorkoutSession {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
-        }
-        val workoutPlan = workoutPlanRepository.findById(workoutPlanId).orElseThrow { 
-            IllegalArgumentException("Workout plan not found") 
-        }
-        
-        // Check for existing active sessions
-        val activeSessions = workoutSessionRepository.findByUserAndStatusIn(
-            user, listOf(WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS)
-        )
-        
-        if (activeSessions.isNotEmpty()) {
-            throw IllegalStateException("User already has an active workout session")
-        }
-        
-        val session = WorkoutSession(
-            user = user,
-            workoutPlan = workoutPlan,
-            status = WorkoutStatus.IN_PROGRESS,
-            startedAt = LocalDateTime.now()
-        )
-        
-        return workoutSessionRepository.save(session)
-    }
-    
-    fun completeWorkoutSession(
-        sessionId: Long,
-        exercisesCompletedJson: String?,
-        notes: String? = null,
-        difficultyRating: Int? = null,
-        effectivenessRating: Int? = null
-    ): WorkoutSession {
-        val session = workoutSessionRepository.findById(sessionId).orElseThrow { 
-            IllegalArgumentException("Workout session not found") 
-        }
-        
-        val now = LocalDateTime.now()
-        val durationMinutes = if (session.startedAt != null) {
-            java.time.Duration.between(session.startedAt, now).toMinutes().toInt()
-        } else null
-        
-        val updatedSession = session.copy(
-            status = WorkoutStatus.COMPLETED,
-            completedAt = now,
-            durationMinutes = durationMinutes,
-            exercisesCompletedJson = exercisesCompletedJson,
-            notes = notes,
-            difficultyRating = difficultyRating,
-            effectivenessRating = effectivenessRating,
-            updatedAt = now
-        )
-        
-        return workoutSessionRepository.save(updatedSession)
-    }
-    
-    fun cancelWorkoutSession(sessionId: Long): WorkoutSession {
-        val session = workoutSessionRepository.findById(sessionId).orElseThrow { 
-            IllegalArgumentException("Workout session not found") 
-        }
-        
-        val updatedSession = session.copy(
-            status = WorkoutStatus.CANCELLED,
-            updatedAt = LocalDateTime.now()
-        )
-        
-        return workoutSessionRepository.save(updatedSession)
-    }
-    
-    // User workout history and analytics
-    fun getUserWorkoutSessions(userId: Long, limit: Int = 20): List<WorkoutSession> {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
-        }
-        
-        return workoutSessionRepository.findRecentSessionsByUser(user).take(limit)
-    }
-    
-    fun getUserWorkoutStats(userId: Long): WorkoutStats {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
-        }
-        
-        val totalCompleted = workoutSessionRepository.countCompletedSessionsByUser(user)
-        val totalMinutes = workoutSessionRepository.getTotalTrainingMinutesByUser(user) ?: 0
-        val averageDuration = workoutSessionRepository.getAverageWorkoutDurationByUser(user)
-        val averageDifficulty = workoutSessionRepository.getAverageDifficultyRatingByUser(user)
-        val averageEffectiveness = workoutSessionRepository.getAverageEffectivenessRatingByUser(user)
-        
-        // Calculate current streak
-        val recentSessions = getUserCompletedWorkoutsInLastDays(userId, 30)
-        val currentStreak = calculateWorkoutStreak(recentSessions)
-        
-        return WorkoutStats(
-            totalWorkoutsCompleted = totalCompleted,
-            totalTrainingMinutes = totalMinutes,
-            averageWorkoutDuration = averageDuration,
-            averageDifficultyRating = averageDifficulty,
-            averageEffectivenessRating = averageEffectiveness,
-            currentStreak = currentStreak
-        )
-    }
-    
-    fun getUserCompletedWorkoutsInLastDays(userId: Long, days: Long = 7): List<WorkoutSession> {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
-        }
-        val since = LocalDateTime.now().minusDays(days)
-        
-        return workoutSessionRepository.findUserCompletedSessionsSince(user, since)
-    }
-    
-    // Training recommendations based on history
-    fun getPersonalizedWorkoutRecommendations(userId: Long): List<WorkoutPlan> {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
-        }
-        
-        // Get user's primary sport and position
-        val sport = user.primarySport ?: return emptyList()
-        val position = user.primaryPosition ?: return emptyList()
-        
-        // Get user's recent sessions to determine difficulty level
-        val recentSessions = getUserCompletedWorkoutsInLastDays(userId, 14)
-        val difficultyRatings = recentSessions.mapNotNull { it.difficultyRating?.toDouble() }
-        
-        val averageDifficulty = if (difficultyRatings.isNotEmpty()) {
-            difficultyRatings.average()
-        } else {
-            2.5 // Default to intermediate
-        }
-        
-        val recommendedDifficulty = when {
-            averageDifficulty >= 4.0 -> DifficultyLevel.ADVANCED
-            averageDifficulty >= 3.0 -> DifficultyLevel.INTERMEDIATE
-            else -> DifficultyLevel.BEGINNER
-        }
-        
-        // Find similar workout plans from other users
-        return workoutPlanRepository.findSimilarPlans(sport, position, recommendedDifficulty, user)
-            .take(5)
-    }
-    
-    // Helper methods
-    private fun calculateWorkoutStreak(completedSessions: List<WorkoutSession>): Int {
-        if (completedSessions.isEmpty()) return 0
-        
-        val sessionDates = completedSessions
-            .mapNotNull { it.completedAt?.toLocalDate() }
-            .distinct()
-            .sortedDescending()
-        
-        var streak = 0
-        var currentDate = LocalDateTime.now().toLocalDate()
-        
-        for (sessionDate in sessionDates) {
-            val daysDiff = java.time.Period.between(sessionDate, currentDate).days
-            
-            if (daysDiff <= 1) {
-                streak++
-                currentDate = sessionDate
-            } else {
-                break
-            }
-        }
-        
-        return streak
+    // Get user's saved workouts only
+    fun getUserSavedWorkouts(userId: Long): List<WorkoutPlan> {
+        return workoutPlanRepository.findByUserId(userId).filter { it.isSaved }
     }
 }
