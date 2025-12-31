@@ -1,6 +1,7 @@
 package com.gameiq.service
 
 import com.gameiq.entity.*
+import com.gameiq.repository.WorkoutPlanRepository
 import com.gameiq.repository.ClaudeConversationRepository
 import com.gameiq.repository.UserRepository
 import org.springframework.beans.factory.annotation.Value
@@ -21,6 +22,7 @@ import java.util.*
 class ClaudeService(
     private val claudeConversationRepository: ClaudeConversationRepository,
     private val userRepository: UserRepository,
+    private val workoutPlanRepository: WorkoutPlanRepository, 
     private val restTemplate: RestTemplate = RestTemplate(),
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
 ) {
@@ -101,19 +103,40 @@ class ClaudeService(
     
     // Position-specific workout plan generation
     fun generateWorkoutPlan(
+        userId: Long,
         sport: Sport,
         position: Position,
         difficultyLevel: DifficultyLevel,
         trainingPhase: TrainingPhase,
         equipmentAvailable: String? = null
-    ): WorkoutContent {
+    ): WorkoutPlan {
         val systemPrompt = buildWorkoutPlanPrompt(sport, position, difficultyLevel, trainingPhase)
         val userPrompt = buildWorkoutPlanUserPrompt(equipmentAvailable)
         
         val claudeResponse = callClaudeApi(userPrompt, systemPrompt)
         
-        // Parse the structured response
-        return parseWorkoutPlanResponse(claudeResponse.content, systemPrompt)
+        val workoutContent = parseWorkoutPlanResponse(claudeResponse.content, systemPrompt)
+
+        val user = userRepository.findById(userId).orElseThrow { 
+            IllegalArgumentException("User not found") 
+        }
+
+        val workoutPlan = WorkoutPlan(
+            user = user,
+            sport = sport,
+            position = position,
+            workoutName = extractWorkoutName(workoutContent.enhancedContent),
+            positionFocus = extractPositionFocus(workoutContent.enhancedContent),
+            difficultyLevel = difficultyLevel.name,
+            durationMinutes = workoutContent.estimatedDuration,
+            equipmentNeeded = workoutContent.equipmentNeeded,
+            generatedContent = workoutContent.enhancedContent,
+            isSaved = false,
+            createdAt = LocalDateTime.now(),
+            updatedAt = LocalDateTime.now()
+        )
+
+        return workoutPlanRepository.save(workoutPlan)
     }
     
     // Quiz generation
@@ -221,43 +244,148 @@ class ClaudeService(
         return "$basePrompt\n\n$sportSpecific\n$positionSpecific\n$conversationSpecific"
     }
     
+    
     private fun buildWorkoutPlanPrompt(
         sport: Sport, 
         position: Position, 
         difficultyLevel: DifficultyLevel, 
         trainingPhase: TrainingPhase
     ): String {
+        val positionSpecificContext = getPositionSpecificContext(sport, position)
+        
         return """
-        You are an expert strength and conditioning coach specializing in $sport training for $position players.
-        
-        Create a detailed workout plan with these specifications:
-        - Sport: $sport
-        - Position: $position  
-        - Difficulty: $difficultyLevel
-        - Training Phase: $trainingPhase
-        
-        Return your response as a JSON object with this exact structure:
-        {
-          "exercises": [
+            You are an elite position-specific performance coach for GameIQ - the premier AI-powered sports intelligence platform. Your expertise lies in creating training programs that develop both the PHYSICAL capabilities and TACTICAL INTELLIGENCE required to master the ${position.name.lowercase()} position in $sport.
+
+            GameIQ Philosophy: "Master YOUR Position" - Every exercise should directly translate to on-field performance and tactical advantage.
+
+            ATHLETE PROFILE:
+            - Sport: $sport
+            - Position: $position
+            - Current Level: $difficultyLevel
+            - Training Phase: $trainingPhase
+            - Focus: Position-specific performance optimization
+
+            POSITION-SPECIFIC CONTEXT:
+            ${positionSpecificContext.keyMovements}
+            ${positionSpecificContext.commonInjuries}
+            ${positionSpecificContext.performanceMetrics}
+
+            Create a workout that embodies "Sports IQ Training" - where every exercise has a clear PURPOSE for position mastery. Return your response as a JSON object with this exact structure:
+
             {
-              "name": "Exercise name",
-              "sets": 3,
-              "reps": "8-12",
-              "restSeconds": 60,
-              "description": "How to perform the exercise",
-              "positionBenefit": "How this helps the specific position"
+                "workoutTitle": "Position-specific title that emphasizes mastery (e.g., 'QB Pocket Presence Power Builder')",
+                "positionFocus": "2-3 sentence explanation of how this workout specifically improves on-field position performance",
+                "exercises": [
+                    {
+                    "name": "Exercise name",
+                    "sets": 3,
+                    "reps": "8-12",
+                    "restSeconds": 60,
+                    "description": "Clear, technical instruction on proper form",
+                    "positionBenefit": "Specific explanation of how this translates to better position performance",
+                    "gameApplication": "Real game situation where this strength/movement is crucial",
+                    "injuryPrevention": "How this exercise prevents common position-specific injuries (if applicable)",
+                    "coachingCue": "One key mental cue athletes should focus on during execution"
+                    }
+                ],
+                "equipmentNeeded": "List of required equipment",
+                "focusAreas": "Primary muscle groups and movement patterns targeted",
+                "estimatedDuration": 45,
+                "warmup": "Position-specific warm-up that prepares for the movement patterns in training",
+                "cooldown": "Recovery routine emphasizing areas that get stressed in this position",
+                "intelligenceNote": "2-3 sentences connecting this physical training to tactical advantages",
+                "progressionTip": "How athletes can advance this workout as they master their position",
+                "nextLevelUnlock": "What position-specific skill this workout prepares them to tackle next"
             }
-          ],
-          "equipmentNeeded": "List of required equipment",
-          "focusAreas": "Primary muscle groups and skills targeted",
-          "estimatedDuration": 45,
-          "warmup": "Warm-up routine description",
-          "cooldown": "Cool-down routine description"
-        }
-        
-        Focus on exercises that are specifically beneficial for $position players in $sport.
+
+            CRITICAL REQUIREMENTS:
+            1. Every exercise must have clear position-specific justification
+            2. Include 6-8 exercises that target the most important movement patterns for this position
+            3. Balance strength, power, mobility, and injury prevention based on position demands
+            4. Use coaching language that builds confidence and emphasizes mastery
+            5. Reference specific game situations, not just generic "functional movement"
+            6. Make the athlete feel like they're training with PURPOSE, not just getting tired
+
+            Remember: This isn't just a workout - it's a step toward position mastery. Make every rep count toward game-day dominance.
         """.trimIndent()
     }
+
+    // Helper function to provide position-specific context
+    private fun getPositionSpecificContext(sport: Sport, position: Position): PositionContext {
+        return when (sport) {
+            Sport.FOOTBALL -> when (position) {
+                Position.QB -> PositionContext(
+                    keyMovements = "KEY MOVEMENTS: Pocket mobility, quick 3-step drops, throwing mechanics under pressure, hip rotation for torque generation, core stability for accuracy",
+                    commonInjuries = "INJURY PREVENTION FOCUS: Shoulder stability, lower back protection, knee valgus prevention during scrambles, rotator cuff health",
+                    performanceMetrics = "PERFORMANCE TARGETS: Arm strength for deep throws, pocket awareness (reaction time), accuracy under pressure, scramble mobility"
+                )
+                Position.RB -> PositionContext(
+                    keyMovements = "KEY MOVEMENTS: Explosive first step, lateral cutting, contact balance, vision through holes, stiff-arm power, pass protection stance",
+                    commonInjuries = "INJURY PREVENTION FOCUS: ACL protection, shoulder stability for contact, ankle stability for cutting, hamstring flexibility",
+                    performanceMetrics = "PERFORMANCE TARGETS: 40-yard dash time, lateral agility, contact balance, vision processing speed"
+                )
+                Position.WR -> PositionContext(
+                    keyMovements = "KEY MOVEMENTS: Route precision, release technique, catch point optimization, RAC ability, contested catch strength",
+                    commonInjuries = "INJURY PREVENTION FOCUS: ACL protection during cuts, shoulder stability for catches, hamstring flexibility for speed",
+                    performanceMetrics = "PERFORMANCE TARGETS: Route running precision, catch radius, separation speed, contested catch success"
+                )
+                // Add more football positions...
+                else -> PositionContext.default()
+            }
+            Sport.BASKETBALL -> when (position) {
+                Position.PG -> PositionContext(
+                    keyMovements = "KEY MOVEMENTS: Court vision processing, quick decision-making under pressure, change of pace dribbling, defensive pressure navigation",
+                    commonInjuries = "INJURY PREVENTION FOCUS: Ankle stability for cuts, core strength for contact, shoulder health for ball security",
+                    performanceMetrics = "PERFORMANCE TARGETS: Court vision speed, assist-to-turnover ratio, defensive pressure handling, leadership presence"
+                )
+                // Add more basketball positions...
+                else -> PositionContext.default()
+            }
+            Sport.BASEBALL -> when (position) {
+                Position.PITCHER -> PositionContext(
+                    keyMovements = "KEY MOVEMENTS: Kinetic chain sequencing, hip-shoulder separation, deceleration mechanics, leg drive efficiency",
+                    commonInjuries = "INJURY PREVENTION FOCUS: Rotator cuff health, UCL protection, lower back stability, hip mobility",
+                    performanceMetrics = "PERFORMANCE TARGETS: Velocity consistency, command accuracy, stamina through pitch counts, injury resilience"
+                )
+                // Add more baseball positions...
+                else -> PositionContext.default()
+            }
+            Sport.SOCCER -> when (position) {
+                Position.GOALKEEPER -> PositionContext(
+                    keyMovements = "KEY MOVEMENTS: Explosive diving saves, quick feet for positioning, distribution accuracy, aerial command presence",
+                    commonInjuries = "INJURY PREVENTION FOCUS: Shoulder stability for diving, core strength for distribution, hip mobility for low saves",
+                    performanceMetrics = "PERFORMANCE TARGETS: Reaction time, distribution accuracy, aerial dominance, shot-stopping percentage"
+                )
+                // Add more soccer positions...
+                else -> PositionContext.default()
+            }
+            else -> PositionContext.default()
+        }
+    }
+
+    // Data class for position-specific context
+    private data class PositionContext(
+        val keyMovements: String,
+        val commonInjuries: String,
+        val performanceMetrics: String
+    ) {
+        companion object {
+            fun default() = PositionContext(
+                keyMovements = "KEY MOVEMENTS: Sport-specific movement patterns and athletic requirements",
+                commonInjuries = "INJURY PREVENTION FOCUS: Common sport-related injury prevention",
+                performanceMetrics = "PERFORMANCE TARGETS: Position-specific performance indicators"
+            )
+        }
+    }
+
+    data class WorkoutContent(
+        val exercisesJson: String,           // JSON array of exercise objects
+        val equipmentNeeded: String? = null,  // Equipment required for workout
+        val focusAreas: String? = null,      // Primary focus areas/muscle groups
+        val estimatedDuration: Int? = null,   // Estimated workout duration in minutes
+        val promptUsed: String,              // System prompt used for generation
+        val enhancedContent: String? = null  // NEW: Formatted, human-readable workout content
+    )
     
     private fun buildQuizGenerationPrompt(
         sport: Sport, 
@@ -357,27 +485,68 @@ class ClaudeService(
     // Response parsers
     private fun parseWorkoutPlanResponse(content: String, promptUsed: String): WorkoutContent {
         return try {
-            val jsonResponse = objectMapper.readValue(content, Map::class.java) as Map<String, Any>
+            // Extract JSON for structured data, but preserve full content for frontend
+            val jsonStartIndex = content.indexOf("{")
+            val jsonEndIndex = content.lastIndexOf("}")
             
-            WorkoutContent(
-                exercisesJson = objectMapper.writeValueAsString(jsonResponse["exercises"]),
-                equipmentNeeded = jsonResponse["equipmentNeeded"] as String?,
-                focusAreas = jsonResponse["focusAreas"] as String?,
-                estimatedDuration = (jsonResponse["estimatedDuration"] as Number?)?.toInt(),
-                promptUsed = promptUsed
-            )
+            if (jsonStartIndex != -1 && jsonEndIndex != -1 && jsonEndIndex > jsonStartIndex) {
+                val extractedJson = content.substring(jsonStartIndex, jsonEndIndex + 1)
+                val jsonResponse = objectMapper.readValue(extractedJson, Map::class.java) as Map<String, Any>
+                
+                // Extract structured data for database fields
+                val workoutTitle = jsonResponse["workoutTitle"] as String? ?: "Position-Specific Workout"
+                val exercises = jsonResponse["exercises"] as List<Map<String, Any>>? ?: emptyList()
+                val equipmentNeeded = jsonResponse["equipmentNeeded"] as String? ?: "Basic equipment"
+                val focusAreas = jsonResponse["focusAreas"] as String? ?: "Position-specific training"
+                val estimatedDuration = (jsonResponse["estimatedDuration"] as Number?)?.toInt() ?: 45
+                
+                println("DEBUG: Successfully parsed structured data. Workout: $workoutTitle")
+                println("DEBUG: Exercises count: ${exercises.size}")
+                
+                // Return both structured data AND preserve the full Claude response with markdown
+                WorkoutContent(
+                    exercisesJson = objectMapper.writeValueAsString(exercises),
+                    equipmentNeeded = equipmentNeeded,
+                    focusAreas = focusAreas,
+                    estimatedDuration = estimatedDuration,
+                    promptUsed = promptUsed,
+                    enhancedContent = content // Store the FULL Claude response with markdown intact
+                )
+                
+            } else {
+                throw IllegalArgumentException("No valid JSON found in Claude response")
+            }
+            
         } catch (e: Exception) {
-            // Fallback if JSON parsing fails
+            println("DEBUG: JSON parsing failed, but preserving full Claude response: ${e.message}")
+            println("DEBUG: Content preview: ${content.take(200)}...")
+            
+            // Even if JSON parsing fails, preserve Claude's full response
+            // The frontend can still display the formatted content
             WorkoutContent(
-                exercisesJson = """[{"name": "Custom workout", "description": "$content"}]""",
-                equipmentNeeded = "Basic gym equipment",
-                focusAreas = "General fitness",
+                exercisesJson = """[{"name": "AI-Generated Workout", "sets": 3, "reps": "varies"}]""",
+                equipmentNeeded = "As specified by user",
+                focusAreas = "Position-specific training", 
                 estimatedDuration = 45,
-                promptUsed = promptUsed
+                promptUsed = promptUsed,
+                enhancedContent = content // Always preserve Claude's full response
             )
         }
     }
-    
+    private fun extractWorkoutName(enhancedContent: String?): String? {
+        return enhancedContent?.let { content ->
+            val titleRegex = Regex("=== (.*?) ===")
+            titleRegex.find(content)?.groupValues?.get(1)
+        }
+    }
+
+    private fun extractPositionFocus(enhancedContent: String?): String? {
+        return enhancedContent?.let { content ->
+            val focusRegex = Regex("POSITION FOCUS:\\s*([^\\n]+)")
+            focusRegex.find(content)?.groupValues?.get(1)
+        }
+    }
+        
     private fun parseQuizResponse(content: String): QuizContent {
         return try {
             val jsonResponse = objectMapper.readValue(content, Map::class.java) as Map<String, Any>
