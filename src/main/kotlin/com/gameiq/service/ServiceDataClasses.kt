@@ -140,3 +140,57 @@ data class QuizAttemptSession(
     val questions: List<com.gameiq.entity.QuizQuestion>,
     val attemptNumber: Int
 )
+
+// Workout system request/response DTOs
+data class WorkoutGenerationRequest(
+    val sport: String,
+    val position: String,
+    val experienceLevel: String, // "beginner", "intermediate", "advanced"
+    val trainingPhase: String,   // "off-season", "pre-season", "in-season", "post-season"
+    val availableEquipment: List<String>,
+    val sessionDuration: Int,    // minutes
+    val focusAreas: List<String>,
+    val specialRequirements: String? = null
+)
+
+data class WorkoutGenerationResponse(
+    val success: Boolean,
+    val data: WorkoutPlanDTO? = null,
+    val error: String? = null,
+    val cost: Double? = null // API cost in dollars
+)
+
+data class WorkoutPlanDTO(
+    val id: String,
+    val title: String,
+    val description: String,
+    val estimatedDuration: Int,
+    val exercises: List<ExerciseDTO>,
+    val focusAreas: List<String>,
+    val createdAt: String,
+    val sport: String? = null,
+    val position: String? = null
+)
+
+data class ExerciseDTO(
+    val name: String,
+    val description: String,
+    val sets: Int,
+    val reps: String,
+    val duration: String? = null,
+    val restPeriod: String? = null,
+    val instructions: List<String>? = null,
+    val videoUrl: String? = null
+)
+
+data class TagWorkoutRequest(
+    val tagIds: List<Long>
+)
+
+data class WorkoutSearchFilters(
+    val tags: List<String>? = null,
+    val sport: String? = null,
+    val position: String? = null,
+    val dateFrom: String? = null,
+    val dateTo: String? = null
+)
