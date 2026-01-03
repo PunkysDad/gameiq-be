@@ -1,210 +1,268 @@
 package com.gameiq.service
 
 import com.gameiq.entity.*
-import com.gameiq.repository.UserRepository
+import com.gameiq.repository.*
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
+import java.time.Instant
 
 @Service
 @Transactional
-class UserService(
-    private val userRepository: UserRepository
+class QuizService(
+    private val quizSessionRepository: QuizSessionRepository,
+    private val quizSessionAttemptRepository: QuizSessionAttemptRepository,
+    private val quizSessionQuestionResultRepository: QuizSessionQuestionResultRepository,
+    private val quizQuestionRepository: QuizQuestionRepository,
+    private val quizCategoryRepository: QuizCategoryRepository,
+    private val userRepository: UserRepository,
+    private val quizGenerationService: QuizGenerationService
 ) {
-    
-    // User creation and authentication
-    fun createUser(
-        email: String,
-        firebaseUid: String,
-        displayName: String,
-        subscriptionTier: SubscriptionTier = SubscriptionTier.NONE
-    ): User {
-        if (userRepository.existsByEmail(email)) {
-            throw IllegalArgumentException("User with email $email already exists")
-        }
-        
-        val user = User(
-            email = email,
-            firebaseUid = firebaseUid,
-            displayName = displayName,
-            subscriptionTier = subscriptionTier
+    private val logger = LoggerFactory.getLogger(QuizService::class.java)
+
+    // 1. CREATE OR GET CORE QUIZ (ALL questions from JSON file)
+    fun createOrGetCoreQuiz(userId: Long, sport: String, position: String): QuizSession {
+        // Check if core quiz already exists for this user/sport/position
+        var coreQuiz = quizSessionRepository.findByUserIdAndQuizTypeAndSportAndPosition(
+            userId, QuizType.CORE, sport, position
         )
         
-        return userRepository.save(user)
-    }
-    
-    fun findByFirebaseUid(firebaseUid: String): User? {
-        return userRepository.findByFirebaseUid(firebaseUid)
-    }
-    
-    fun findByEmail(email: String): User? {
-        return userRepository.findByEmail(email)
-    }
-    
-    fun findById(userId: Long): User? {
-        return userRepository.findById(userId).orElse(null)
-    }
-    
-    // Profile updates
-    fun updateUserProfile(
-        userId: Long,
-        displayName: String?,
-        primarySport: Sport?,
-        primaryPosition: Position?,
-        age: Int?
-    ): User {
-        val user = findById(userId) ?: throw IllegalArgumentException("User not found")
-        
-        val updatedUser = user.copy(
-            displayName = displayName ?: user.displayName,
-            primarySport = primarySport ?: user.primarySport,
-            primaryPosition = primaryPosition ?: user.primaryPosition,
-            age = age ?: user.age,
-            updatedAt = LocalDateTime.now()
-        )
-        
-        return userRepository.save(updatedUser)
-    }
-    
-    // Subscription management
-    fun upgradeSubscription(userId: Long, newTier: SubscriptionTier): User {
-        val user = findById(userId) ?: throw IllegalArgumentException("User not found")
-        
-        // Validate upgrade path
-        if (!isValidUpgrade(user.subscriptionTier, newTier)) {
-            throw IllegalArgumentException("Invalid subscription upgrade from ${user.subscriptionTier} to $newTier")
-        }
-        
-        val updatedUser = user.copy(
-            subscriptionTier = newTier,
-            updatedAt = LocalDateTime.now()
-        )
-        
-        return userRepository.save(updatedUser)
-    }
-    
-    fun downgradeSubscription(userId: Long): User {
-        val user = findById(userId) ?: throw IllegalArgumentException("User not found")
-        
-        val newTier = when (user.subscriptionTier) {
-            SubscriptionTier.PREMIUM -> SubscriptionTier.BASIC
-            SubscriptionTier.BASIC -> SubscriptionTier.NONE
-            SubscriptionTier.NONE -> SubscriptionTier.NONE
-        }
-        
-        val updatedUser = user.copy(
-            subscriptionTier = newTier,
-            updatedAt = LocalDateTime.now()
-        )
-        
-        return userRepository.save(updatedUser)
-    }
-    
-    // Activity tracking
-    fun updateLastActive(userId: Long): User {
-        val user = findById(userId) ?: throw IllegalArgumentException("User not found")
-        
-        val updatedUser = user.copy(
-            lastActiveAt = LocalDateTime.now()
-        )
-        
-        return userRepository.save(updatedUser)
-    }
-    
-    fun deactivateUser(userId: Long): User {
-        val user = findById(userId) ?: throw IllegalArgumentException("User not found")
-        
-        val updatedUser = user.copy(
-            isActive = false,
-            updatedAt = LocalDateTime.now()
-        )
-        
-        return userRepository.save(updatedUser)
-    }
-    
-    fun reactivateUser(userId: Long): User {
-        val user = findById(userId) ?: throw IllegalArgumentException("User not found")
-        
-        val updatedUser = user.copy(
-            isActive = true,
-            updatedAt = LocalDateTime.now()
-        )
-        
-        return userRepository.save(updatedUser)
-    }
-    
-    // Helper methods
-    private fun isValidUpgrade(currentTier: SubscriptionTier, newTier: SubscriptionTier): Boolean {
-        val tierOrder = listOf(
-            SubscriptionTier.NONE,
-            SubscriptionTier.BASIC,
-            SubscriptionTier.PREMIUM
-        )
-        
-        val currentIndex = tierOrder.indexOf(currentTier)
-        val newIndex = tierOrder.indexOf(newTier)
-        
-        return newIndex >= currentIndex
-    }
-    
-    // Subscription benefits and pricing
-    fun getSubscriptionBenefits(tier: SubscriptionTier): Map<String, Any> {
-        return when (tier) {
-            SubscriptionTier.NONE -> mapOf(
-                "monthlyApiBudgetCents" to 0,
-                "description" to "No active subscription",
-                "features" to listOf("Limited access")
+        if (coreQuiz == null) {
+            // Create core quiz with ALL available questions for this sport/position
+            val allQuestions = quizQuestionRepository.findBySportAndPosition(sport, position)
+            if (allQuestions.isEmpty()) {
+                throw IllegalArgumentException("No questions available for $sport/$position")
+            }
+            
+            val user = userRepository.findById(userId)
+                .orElseThrow { IllegalArgumentException("User not found: $userId") }
+            
+            coreQuiz = QuizSession(
+                user = user,
+                quizType = QuizType.CORE,
+                sport = sport,
+                position = position,
+                questionIds = allQuestions.map { it.id },
+                sessionName = "Core ${sport.capitalize()} ${position.capitalize()} Quiz"
             )
             
-            SubscriptionTier.BASIC -> mapOf(
-                "monthlyApiBudgetCents" to 300, // $3.00 budget
-                "description" to "Basic Plan - $9.99/month",
-                "features" to listOf(
-                    "Unlimited AI coaching for one sport/position",
-                    "Basic progress tracking", 
-                    "Standard response speed"
-                )
-            )
+            coreQuiz = quizSessionRepository.save(coreQuiz)
+            logger.info("Created core quiz for user $userId: $sport/$position with ${allQuestions.size} questions")
+        }
+        
+        return coreQuiz
+    }
+
+    // 2. START A QUIZ ATTEMPT (returns the questions in order)
+    fun startQuizAttempt(userId: Long, quizSessionId: Long): QuizAttemptSession {
+        val quizSession = quizSessionRepository.findById(quizSessionId)
+            .orElseThrow { IllegalArgumentException("Quiz session not found: $quizSessionId") }
             
-            SubscriptionTier.PREMIUM -> mapOf(
-                "monthlyApiBudgetCents" to 1000, // $10.00 budget  
-                "description" to "Premium Plan - $14.99/month",
-                "features" to listOf(
-                    "Unlimited AI coaching for all sports/positions",
-                    "Advanced analytics and progress insights",
-                    "Priority response speed",
-                    "Social sharing features",
-                    "Early access to new features"
-                )
+        if (quizSession.user.id != userId) {
+            throw IllegalArgumentException("Quiz session does not belong to user")
+        }
+        
+        // Get the questions for this quiz in the same order
+        val questions = quizQuestionRepository.findAllById(quizSession.questionIds)
+            .sortedBy { quizSession.questionIds.indexOf(it.id) } // Maintain order
+            
+        val nextAttemptNumber = quizSessionAttemptRepository.getNextAttemptNumber(quizSessionId)
+        
+        logger.info("Starting attempt #$nextAttemptNumber for quiz session $quizSessionId")
+        
+        return QuizAttemptSession(
+            quizSession = quizSession,
+            questions = questions,
+            attemptNumber = nextAttemptNumber
+        )
+    }
+
+    // 3. SUBMIT COMPLETE QUIZ ATTEMPT (all answers at once - variable length for core, 15 for generated)
+    fun submitQuizAttempt(
+        userId: Long, 
+        quizSessionId: Long, 
+        answers: List<QuizAnswer>,
+        totalTimeTaken: Int? = null
+    ): QuizSessionAttempt {
+        val quizSession = quizSessionRepository.findById(quizSessionId)
+            .orElseThrow { IllegalArgumentException("Quiz session not found: $quizSessionId") }
+            
+        if (quizSession.user.id != userId) {
+            throw IllegalArgumentException("Quiz session does not belong to user")
+        }
+        
+        val expectedQuestionCount = quizSession.questionIds.size
+        if (answers.size != expectedQuestionCount) {
+            throw IllegalArgumentException("Must provide exactly $expectedQuestionCount answers. Received: ${answers.size}")
+        }
+        
+        val user = userRepository.findById(userId)
+            .orElseThrow { IllegalArgumentException("User not found: $userId") }
+        
+        // Get questions in order
+        val questions = quizQuestionRepository.findAllById(quizSession.questionIds)
+            .associateBy { it.id }
+            
+        // Validate all questions are answered
+        val questionIds = quizSession.questionIds
+        answers.forEachIndexed { index, answer ->
+            val expectedQuestionId = questionIds[index]
+            if (answer.questionId != expectedQuestionId) {
+                throw IllegalArgumentException("Answer at position ${index + 1} is for wrong question. Expected: $expectedQuestionId, Got: ${answer.questionId}")
+            }
+        }
+        
+        // Calculate score
+        var correctAnswers = 0
+        val questionResults = answers.mapIndexed { index, answer ->
+            val question = questions[answer.questionId]!!
+            val isCorrect = answer.selectedAnswer == question.correct
+            if (isCorrect) correctAnswers++
+            
+            QuizSessionQuestionResult(
+                sessionAttempt = QuizSessionAttempt(
+                    quizSession = quizSession,
+                    user = user,
+                    attemptNumber = 0, // Temporary - will be updated when attempt is created
+                    totalScore = 0,
+                    correctAnswers = 0
+                ),
+                question = question,
+                questionNumber = index + 1,
+                answerSelected = answer.selectedAnswer,
+                isCorrect = isCorrect,
+                timeTaken = answer.timeTaken
+            )
+        }
+        
+        val totalScore = (correctAnswers * 100) / expectedQuestionCount // Convert to percentage
+        val attemptNumber = quizSessionAttemptRepository.getNextAttemptNumber(quizSessionId)
+        
+        // Create attempt
+        var attempt = QuizSessionAttempt(
+            quizSession = quizSession,
+            user = user,
+            attemptNumber = attemptNumber,
+            totalScore = totalScore,
+            correctAnswers = correctAnswers,
+            timeTaken = totalTimeTaken,
+            completedAt = Instant.now()
+        )
+        
+        attempt = quizSessionAttemptRepository.save(attempt)
+        
+        // Save question results
+        val savedQuestionResults = questionResults.map { result ->
+            quizSessionQuestionResultRepository.save(result.copy(sessionAttempt = attempt))
+        }
+        
+        logger.info("Quiz attempt completed: user=$userId, session=$quizSessionId, attempt=$attemptNumber, score=$totalScore%, correct=$correctAnswers/$expectedQuestionCount")
+        
+        return attempt.copy(questionResults = savedQuestionResults)
+    }
+
+    // 4. GET QUIZ RESULTS - Summary view
+    fun getQuizSessions(
+        userId: Long, 
+        sport: String? = null, 
+        position: String? = null,
+        minScore: Int? = null
+    ): List<QuizSessionSummary> {
+        val sessions = if (sport != null && position != null) {
+            quizSessionRepository.findByUserIdAndSportAndPosition(userId, sport, position)
+        } else {
+            quizSessionRepository.findByUserIdOrderByCreatedAtAsc(userId)
+        }
+        
+        return sessions.map { session ->
+            val attempts = quizSessionAttemptRepository.findByQuizSessionIdOrderByAttemptNumberDesc(session.id)
+            val filteredAttempts = if (minScore != null) {
+                attempts.filter { it.totalScore >= minScore }
+            } else {
+                attempts
+            }
+            
+            QuizSessionSummary(
+                session = session,
+                attempts = filteredAttempts,
+                totalAttempts = attempts.size,
+                bestScore = attempts.maxOfOrNull { it.totalScore } ?: 0,
+                latestScore = attempts.firstOrNull()?.totalScore ?: 0,
+                passed = (attempts.maxOfOrNull { it.totalScore } ?: 0) >= 70
             )
         }
     }
-    
-    fun getMonthlyPrice(tier: SubscriptionTier): Double {
-        return when (tier) {
-            SubscriptionTier.NONE -> 0.00
-            SubscriptionTier.BASIC -> 9.99
-            SubscriptionTier.PREMIUM -> 14.99
+
+    // 5. GET DETAILED QUIZ ATTEMPT RESULTS - Individual question breakdown
+    fun getQuizAttemptDetail(userId: Long, attemptId: Long): QuizAttemptDetail {
+        val attempt = quizSessionAttemptRepository.findById(attemptId)
+            .orElseThrow { IllegalArgumentException("Quiz attempt not found: $attemptId") }
+            
+        if (attempt.user.id != userId) {
+            throw IllegalArgumentException("Quiz attempt does not belong to user")
         }
+        
+        val questionResults = quizSessionQuestionResultRepository
+            .findBySessionAttemptIdOrderByQuestionNumber(attemptId)
+            
+        return QuizAttemptDetail(
+            attempt = attempt,
+            questionResults = questionResults
+        )
     }
-    
-    fun getAllUsers(): List<User> {
-        return userRepository.findAll()
+
+    // 6. CHECK IF USER CAN GENERATE NEW QUIZ (must pass previous with 70%+)
+    fun canGenerateNewQuiz(userId: Long, sport: String, position: String): Boolean {
+        // For core quiz, just check if it exists and is passed
+        val coreQuiz = quizSessionRepository.findByUserIdAndQuizTypeAndSportAndPosition(
+            userId, QuizType.CORE, sport, position
+        )
+        
+        if (coreQuiz == null || !coreQuiz.passed) {
+            return false
+        }
+        
+        // For generated quizzes, check if latest quiz is passed
+        val latestQuiz = quizSessionRepository.findLatestQuizSession(userId, sport, position)
+        return latestQuiz?.passed == true
     }
-    
-    fun getActiveUsers(): List<User> {
-        return userRepository.findByIsActiveTrue()
+
+    // 7. GENERATE NEW QUIZ (only if user passed previous quiz with 70%+)
+    fun generateNewQuiz(userId: Long, sport: String, position: String): QuizSession {
+        if (!canGenerateNewQuiz(userId, sport, position)) {
+            throw IllegalArgumentException("Cannot generate new quiz. Must pass previous quiz with 70% or higher.")
+        }
+        
+        val user = userRepository.findById(userId)
+            .orElseThrow { IllegalArgumentException("User not found: $userId") }
+            
+        // Get existing quiz count to name the new one
+        val existingQuizzes = quizSessionRepository.findByUserIdAndSportAndPosition(userId, sport, position)
+        val quizNumber = existingQuizzes.size + 1
+        
+        // Generate new 15 questions (avoid recent questions if possible)
+        val questions = quizGenerationService.getRandomQuestions(sport, position, 15)
+        if (questions.size < 15) {
+            throw IllegalArgumentException("Not enough questions available for $sport/$position")
+        }
+        
+        val newQuiz = QuizSession(
+            user = user,
+            quizType = QuizType.GENERATED,
+            sport = sport,
+            position = position,
+            questionIds = questions.map { it.id },
+            sessionName = "Generated ${sport.capitalize()} ${position.capitalize()} Quiz #${quizNumber - 1}" // Subtract 1 because core quiz counts
+        )
+        
+        val savedQuiz = quizSessionRepository.save(newQuiz)
+        logger.info("Generated new quiz for user $userId: $sport/$position (Quiz #${quizNumber - 1})")
+        
+        return savedQuiz
     }
-    
-    fun getUsersBySubscriptionTier(tier: SubscriptionTier): List<User> {
-        return userRepository.findBySubscriptionTier(tier)
-    }
-    
-    fun getUsersBySport(sport: Sport): List<User> {
-        return userRepository.findByPrimarySport(sport)
-    }
-    
-    fun getUsersByPosition(position: Position): List<User> {
-        return userRepository.findByPrimaryPosition(position)
+
+    // PRIVATE HELPER METHODS
+    private fun String.capitalize(): String {
+        return this.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 }
