@@ -22,7 +22,7 @@ import java.util.*
 class ClaudeService(
     private val claudeConversationRepository: ClaudeConversationRepository,
     private val userRepository: UserRepository,
-    private val workoutPlanRepository: WorkoutPlanRepository, 
+    private val workoutPlanRepository: WorkoutPlanRepository,
     private val restTemplate: RestTemplate = RestTemplate(),
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
 ) {
@@ -104,39 +104,184 @@ class ClaudeService(
     // Position-specific workout plan generation
     fun generateWorkoutPlan(
         userId: Long,
-        sport: Sport,
-        position: Position,
-        difficultyLevel: DifficultyLevel,
-        trainingPhase: TrainingPhase,
-        equipmentAvailable: String? = null
+        sport: String,
+        position: String,
+        experienceLevel: String,
+        trainingPhase: String,
+        availableEquipment: String,
+        sessionDuration: Int,
+        focusAreas: String,
+        specialRequirements: String? = null
     ): WorkoutPlan {
-        val systemPrompt = buildWorkoutPlanPrompt(sport, position, difficultyLevel, trainingPhase)
-        val userPrompt = buildWorkoutPlanUserPrompt(equipmentAvailable)
-        
-        val claudeResponse = callClaudeApi(userPrompt, systemPrompt)
-        
-        val workoutContent = parseWorkoutPlanResponse(claudeResponse.content, systemPrompt)
-
+        // Get user entity
         val user = userRepository.findById(userId).orElseThrow { 
             IllegalArgumentException("User not found") 
         }
-
+        
+        // Convert string parameters to enums
+        val sportEnum = Sport.valueOf(sport.uppercase())
+        val positionEnum = when (position.uppercase().replace(" ", "")) {
+            "WIDERECEIVER" -> Position.WR
+            "QUARTERBACK" -> Position.QB
+            "RUNNINGBACK" -> Position.RB
+            "OFFENSIVELINE" -> Position.OL
+            "TIGHTEND" -> Position.TE
+            "LINEBACKER" -> Position.LB
+            "DEFENSIVEBACK" -> Position.DB
+            "DEFENSIVELINE" -> Position.DL
+            "POINTGUARD" -> Position.PG
+            "SHOOTINGGUARD" -> Position.SG
+            "SMALLFORWARD" -> Position.SF
+            "POWERFORWARD" -> Position.PF
+            "CENTER" -> Position.CENTER
+            "PITCHER" -> Position.PITCHER
+            "CATCHER" -> Position.CATCHER
+            "INFIELD" -> Position.INFIELD
+            "OUTFIELD" -> Position.OUTFIELD
+            "GOALKEEPER" -> Position.GOALKEEPER
+            "DEFENDER" -> Position.DEFENDER
+            "MIDFIELDER" -> Position.MIDFIELDER
+            "FORWARD" -> Position.FORWARD
+            "WINGER" -> Position.WINGER
+            "DEFENSEMAN" -> Position.DEFENSEMAN
+            "GOALIE" -> Position.GOALIE
+            else -> throw IllegalArgumentException("Unknown position: $position")
+        }
+        
+        // Create position-specific system prompt
+        val systemPrompt = createWorkoutSystemPrompt(sportEnum, positionEnum, experienceLevel, trainingPhase)
+        
+        // Create user message - NO JSON requirement, just natural workout request
+        val userMessage = """
+            Generate a comprehensive $sessionDuration-minute workout for a $sport $position player.
+            
+            Experience Level: $experienceLevel
+            Training Phase: $trainingPhase
+            Available Equipment: $availableEquipment
+            Focus Areas: $focusAreas
+            ${specialRequirements?.let { "Special Requirements: $it" } ?: ""}
+            
+            Please provide a detailed, well-formatted workout plan with:
+            - Clear exercise names and descriptions
+            - Sets, reps, and rest periods for each exercise
+            - Coaching cues and technique tips
+            - How each exercise benefits the $position position
+            - Injury prevention considerations
+            
+            Format the workout clearly with sections and proper structure.
+        """.trimIndent()
+        
+        // Call Claude API using existing chatWithClaude method
+        val conversation = chatWithClaude(
+            userId = userId,
+            message = userMessage,
+            sessionId = null,
+            sport = sportEnum,
+            position = positionEnum,
+            conversationType = ConversationType.WORKOUT_CUSTOMIZATION
+        )
+        
+        // Extract workout title from the response (simple text extraction)
+        val workoutTitle = extractSimpleWorkoutTitle(conversation.claudeResponse) 
+            ?: "$position $trainingPhase Workout"
+        
+        // Create and save WorkoutPlan entity - NO PARSING NEEDED
         val workoutPlan = WorkoutPlan(
             user = user,
-            sport = sport,
-            position = position,
-            workoutName = extractWorkoutName(workoutContent.enhancedContent),
-            positionFocus = extractPositionFocus(workoutContent.enhancedContent),
-            difficultyLevel = difficultyLevel.name,
-            durationMinutes = workoutContent.estimatedDuration,
-            equipmentNeeded = workoutContent.equipmentNeeded,
-            generatedContent = workoutContent.enhancedContent,
+            sport = sportEnum,
+            position = positionEnum,
+            workoutName = workoutTitle,
+            positionFocus = "Position-specific training for $position in $sport",
+            difficultyLevel = experienceLevel.uppercase(),
+            durationMinutes = sessionDuration, // Use requested duration
+            equipmentNeeded = availableEquipment, // Use requested equipment
+            generatedContent = conversation.claudeResponse, // Store full markdown response
             isSaved = false,
             createdAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now()
         )
-
+        
+        // Save and return the entity
         return workoutPlanRepository.save(workoutPlan)
+    }
+
+    private fun extractSimpleWorkoutTitle(content: String): String? {
+        return try {
+            // Look for common workout title patterns
+            val titlePatterns = listOf(
+                Regex("""(?i)(?:workout|training|session):\s*([^\n]+)"""),
+                Regex("""(?i)# ([^\n]*(?:workout|training|session)[^\n]*)"""),
+                Regex("""(?i)## ([^\n]*(?:workout|training|session)[^\n]*)"""),
+                Regex("""(?i)### ([^\n]*(?:workout|training|session)[^\n]*)""")
+            )
+            
+            for (pattern in titlePatterns) {
+                val match = pattern.find(content)
+                if (match != null && match.groupValues.size > 1) {
+                    val title = match.groupValues[1].trim()
+                    if (title.isNotEmpty()) {
+                        return title
+                    }
+                }
+            }
+            
+            // Fallback: look for the first header in the content
+            val headerMatch = Regex("""(?i)#+\s*([^\n]+)""").find(content)
+            headerMatch?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+            
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // Helper method to create position-specific system prompt
+    private fun createWorkoutSystemPrompt(
+        sport: Sport,
+        position: Position,
+        experienceLevel: String,
+        trainingPhase: String
+    ): String {
+        return """
+            You are an elite $sport coach specializing in $position training. Your expertise includes:
+            
+            - Position-specific movement patterns and physical demands for $position
+            - Injury prevention strategies for common $position injuries  
+            - Performance enhancement that directly translates to $sport competition
+            - Training periodization for $trainingPhase phase
+            - Exercise selection based on $experienceLevel level athletes
+            
+            Create highly specific workouts that directly improve $position performance on the field.
+            Every exercise should have a clear connection to game situations and position requirements.
+            
+            Focus Areas:
+            - Functional movement patterns specific to $position
+            - Strength and power development for position demands
+            - Injury prevention for vulnerable areas
+            - Game-specific conditioning and endurance
+            
+            Always respond with valid JSON containing detailed exercise information including:
+            - Specific coaching cues for proper execution
+            - How each exercise benefits position performance
+            - Game application examples
+            - Safety and injury prevention notes
+            
+            Make each workout challenging but appropriate for $experienceLevel level.
+        """.trimIndent()
+    }
+
+    // Helper function to extract workout title from Claude's JSON response
+    private fun extractWorkoutTitle(content: String): String? {
+        return try {
+            val jsonStart = content.indexOf("{")
+            val jsonEnd = content.lastIndexOf("}")
+            if (jsonStart != -1 && jsonEnd != -1) {
+                val json = content.substring(jsonStart, jsonEnd + 1)
+                val jsonResponse = objectMapper.readValue(json, Map::class.java) as Map<String, Any>
+                jsonResponse["workoutTitle"] as? String
+            } else null
+        } catch (e: Exception) {
+            null
+        }
     }
     
     // Quiz generation
@@ -485,12 +630,22 @@ class ClaudeService(
     // Response parsers
     private fun parseWorkoutPlanResponse(content: String, promptUsed: String): WorkoutContent {
         return try {
+            // Strip markdown code blocks FIRST
+            val cleanedContent = content
+                .replace("```json", "")
+                .replace("```", "")
+                .trim()
+            
+            println("DEBUG: Cleaned content preview: ${cleanedContent.take(200)}...")
+            
             // Extract JSON for structured data, but preserve full content for frontend
-            val jsonStartIndex = content.indexOf("{")
-            val jsonEndIndex = content.lastIndexOf("}")
+            val jsonStartIndex = cleanedContent.indexOf("{")
+            val jsonEndIndex = cleanedContent.lastIndexOf("}")
             
             if (jsonStartIndex != -1 && jsonEndIndex != -1 && jsonEndIndex > jsonStartIndex) {
-                val extractedJson = content.substring(jsonStartIndex, jsonEndIndex + 1)
+                val extractedJson = cleanedContent.substring(jsonStartIndex, jsonEndIndex + 1)
+                println("DEBUG: Extracted JSON preview: ${extractedJson.take(200)}...")
+                
                 val jsonResponse = objectMapper.readValue(extractedJson, Map::class.java) as Map<String, Any>
                 
                 // Extract structured data for database fields
@@ -533,6 +688,7 @@ class ClaudeService(
             )
         }
     }
+
     private fun extractWorkoutName(enhancedContent: String?): String? {
         return enhancedContent?.let { content ->
             val titleRegex = Regex("=== (.*?) ===")
