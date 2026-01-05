@@ -735,4 +735,8 @@ class ClaudeService(
         
         return totalCostCents
     }
+
+    fun getUserConversations(userId: Long): List<ClaudeConversation> {
+        return claudeConversationRepository.findByUserId(userId)
+    }
 }

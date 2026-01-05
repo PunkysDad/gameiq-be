@@ -68,6 +68,39 @@ class WorkoutController @Autowired constructor(
         } catch (e: Exception) {
             return ResponseEntity.badRequest().build()
         }
+
+        @GetMapping("/user/{userId}")
+        fun getUserWorkouts(@PathVariable userId: Long): ResponseEntity<List<WorkoutPlanDTO>> {
+            return try {
+                // Get all workout plans for the user
+                val workoutPlans = workoutService.getUserWorkoutPlans(userId)
+                
+                val workoutDTOs = workoutPlans.map { workoutPlan ->
+                    WorkoutPlanDTO(
+                        id = workoutPlan.id.toString(),
+                        title = workoutPlan.workoutName ?: "Workout Plan",
+                        description = workoutPlan.positionFocus ?: "",
+                        estimatedDuration = workoutPlan.durationMinutes ?: 45,
+                        exercises = emptyList<ExerciseDTO>(), // Explicitly typed empty list
+                        focusAreas = listOf(workoutPlan.positionFocus ?: "General Training"),
+                        createdAt = workoutPlan.createdAt.toString(),
+                        sport = workoutPlan.sport.name,
+                        position = workoutPlan.position.name,
+                        generatedContent = workoutPlan.generatedContent
+                    )
+                }
+                
+                ResponseEntity.ok(workoutDTOs)
+            } catch (e: Exception) {
+                ResponseEntity.badRequest().build()
+            }
+        }
+
+        @GetMapping("/{workoutId}")
+        fun getWorkoutById(@PathVariable workoutId: Long): ResponseEntity<WorkoutPlan?> {
+            val workout = workoutService.getWorkoutPlanById(workoutId)
+            return ResponseEntity.ok(workout)
+        }
     }
     
     private fun parseExercisesFromGeneratedContent(generatedContent: String?): List<ExerciseDTO> {
@@ -155,9 +188,4 @@ class WorkoutController @Autowired constructor(
         return exercises
     }
     
-    @GetMapping("/{workoutId}")
-    fun getWorkoutById(@PathVariable workoutId: Long): ResponseEntity<WorkoutPlan?> {
-        val workout = workoutService.getWorkoutPlanById(workoutId)
-        return ResponseEntity.ok(workout)
-    }
 }

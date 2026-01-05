@@ -5,9 +5,13 @@ import com.gameiq.entity.Sport
 import com.gameiq.entity.Position
 import com.gameiq.entity.SubscriptionTier
 import com.gameiq.service.UserService
+import com.gameiq.service.ClaudeService
+import com.gameiq.service.WorkoutService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.http.HttpStatus
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 data class UserProfileResponse(
     val id: Long,
@@ -41,6 +45,8 @@ data class UserStatsResponse(
     val totalQuizzes: Long,
     val averageScore: Double,
     val totalConversations: Long,
+    val totalWorkouts: Long,
+    val daysSinceLastActivity: Int,
     val currentStreak: Int
 )
 
@@ -48,7 +54,9 @@ data class UserStatsResponse(
 @RequestMapping("/users")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class UserController(
-    private val userService: UserService
+    private val userService: UserService,
+    private val claudeService: ClaudeService,
+    private val workoutService: WorkoutService
 ) {
     
     @PostMapping
@@ -180,16 +188,46 @@ class UserController(
     @GetMapping("/{userId}/stats")
     fun getUserStats(@PathVariable userId: Long): ResponseEntity<UserStatsResponse> {
         return try {
-            // For now, return mock stats until we implement the actual stats methods
+            // Get actual conversation count from ClaudeService
+            val conversationCount = claudeService.getUserConversations(userId).size.toLong()
+            
+            // Get actual workout count from WorkoutService
+            val workoutCount = workoutService.getUserWorkoutPlans(userId).size.toLong()
+            
+            // Calculate days since last activity
+            val conversations = claudeService.getUserConversations(userId)
+            val workouts = workoutService.getUserWorkoutPlans(userId)
+            
+            val lastConversationDate = conversations.maxByOrNull { it.createdAt }?.createdAt
+            val lastWorkoutDate = workouts.maxByOrNull { it.createdAt }?.createdAt
+            
+            val mostRecentActivity = listOfNotNull(lastConversationDate, lastWorkoutDate)
+                .maxByOrNull { it } ?: LocalDateTime.now().minusDays(365)
+            
+            val daysSinceLastActivity = ChronoUnit.DAYS.between(mostRecentActivity, LocalDateTime.now()).toInt()
+            
             val stats = UserStatsResponse(
+                totalQuizzes = 0L, // Keep as 0 since we're not using quizzes for now
+                averageScore = 0.0, // Keep as 0 since we're not using quizzes for now
+                totalConversations = conversationCount,
+                totalWorkouts = workoutCount,
+                daysSinceLastActivity = daysSinceLastActivity,
+                currentStreak = 0 // Can implement later
+            )
+            
+            ResponseEntity.ok(stats)
+        } catch (e: Exception) {
+            println("Error getting user stats for userId $userId: ${e.message}")
+            // Return empty stats on error instead of 404
+            val emptyStats = UserStatsResponse(
                 totalQuizzes = 0L,
                 averageScore = 0.0,
                 totalConversations = 0L,
+                totalWorkouts = 0L,
+                daysSinceLastActivity = 0,
                 currentStreak = 0
             )
-            ResponseEntity.ok(stats)
-        } catch (e: Exception) {
-            ResponseEntity.notFound().build()
+            ResponseEntity.ok(emptyStats)
         }
     }
     
