@@ -169,7 +169,8 @@ data class WorkoutPlanDTO(
     val focusAreas: List<String>,
     val createdAt: String,
     val sport: String? = null,
-    val position: String? = null
+    val position: String? = null,
+    val generatedContent: String? = null
 )
 
 data class ExerciseDTO(

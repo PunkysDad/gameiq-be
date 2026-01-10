@@ -88,4 +88,30 @@ class ClaudeConversationController(
             "conversationTypes" to ConversationType.values().map { it.name }
         ))
     }
+
+    @GetMapping("/user/{userId}")
+    fun getUserConversations(@PathVariable userId: Long): ResponseEntity<List<ChatResponse>> {
+        return try {
+            // Get all conversations for the user from your service
+            val conversations = claudeService.getUserConversations(userId)
+            
+            val chatResponses = conversations.map { conversation ->
+                ChatResponse(
+                    id = conversation.id,
+                    sessionId = conversation.sessionId,
+                    userMessage = conversation.userMessage,
+                    claudeResponse = conversation.claudeResponse,
+                    sport = conversation.sport?.name,
+                    position = conversation.position?.name,
+                    conversationType = conversation.conversationType.name,
+                    timestamp = conversation.createdAt.toString(),
+                    tokenUsage = (conversation.tokensUsedInput ?: 0) + (conversation.tokensUsedOutput ?: 0)
+                )
+            }
+            
+            ResponseEntity.ok(chatResponses)
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().build()
+        }
+    }
 }
