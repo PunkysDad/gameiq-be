@@ -43,17 +43,10 @@ gameiq:
     max-tokens: ${CLAUDE_MAX_TOKENS:1000}
     
   subscriptions:
-    free-tier:
-      quiz-questions-per-week: 5
-      ai-questions-per-week: 5
-      workout-plans-per-month: 2
-    individual-tier:
-      price-monthly: 12.99
-      price-annual: 99.99
-    family-tier:
-      price-monthly: 14.99
-      price-annual: 119.99
-      max-athletes: 4
+    basic-tier:
+      price-monthly: 11.99
+    premium-tier:
+      price-monthly: 16.99
       
   social:
     facebook:

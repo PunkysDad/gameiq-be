@@ -60,6 +60,7 @@ class UserService(
         primarySport: Sport? = null,
         primaryPosition: Position? = null,
         age: Int? = null,
+        subscriptionTier: SubscriptionTier? = null,
         email: String? = null
     ): User {
         val user = userRepository.findById(userId).orElseThrow { 
@@ -72,6 +73,7 @@ class UserService(
             primaryPosition = primaryPosition ?: user.primaryPosition,
             age = age ?: user.age,
             email = email ?: user.email,
+            subscriptionTier = subscriptionTier ?: user.subscriptionTier,
             updatedAt = LocalDateTime.now()
         )
         
