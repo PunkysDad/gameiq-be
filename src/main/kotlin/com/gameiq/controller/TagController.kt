@@ -8,40 +8,26 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/users/{userId}/tags")
+@RequestMapping("/api/v1/users/{userId}/tags")
 class TagController @Autowired constructor(
     private val tagService: TagService
 ) {
-    
+
     @GetMapping
     fun getUserTags(@PathVariable userId: Long): ResponseEntity<List<TagResponse>> {
         val tags = tagService.getUserTags(userId)
-        val tagResponses = tags.map { tag ->
-            TagResponse(
-                id = tag.id,
-                name = tag.name,
-                color = tag.color,
-                createdAt = tag.createdAt.toString()
-            )
-        }
-        return ResponseEntity.ok(tagResponses)
+        return ResponseEntity.ok(tags.map { it.toResponse() })
     }
-    
+
     @PostMapping
     fun createTag(
         @PathVariable userId: Long,
         @RequestBody request: CreateTagRequest
     ): ResponseEntity<TagResponse> {
         val tag = tagService.createTag(userId, request.name, request.color)
-        val response = TagResponse(
-            id = tag.id,
-            name = tag.name,
-            color = tag.color,
-            createdAt = tag.createdAt.toString()
-        )
-        return ResponseEntity.status(HttpStatus.CREATED).body(response)
+        return ResponseEntity.status(HttpStatus.CREATED).body(tag.toResponse())
     }
-    
+
     @PutMapping("/{tagId}")
     fun updateTag(
         @PathVariable userId: Long,
@@ -49,15 +35,9 @@ class TagController @Autowired constructor(
         @RequestBody request: UpdateTagRequest
     ): ResponseEntity<TagResponse> {
         val tag = tagService.updateTag(userId, tagId, request.name, request.color)
-        val response = TagResponse(
-            id = tag.id,
-            name = tag.name,
-            color = tag.color,
-            createdAt = tag.createdAt.toString()
-        )
-        return ResponseEntity.ok(response)
+        return ResponseEntity.ok(tag.toResponse())
     }
-    
+
     @DeleteMapping("/{tagId}")
     fun deleteTag(
         @PathVariable userId: Long,
@@ -66,26 +46,58 @@ class TagController @Autowired constructor(
         tagService.deleteTag(userId, tagId)
         return ResponseEntity.ok(mapOf("message" to "Tag deleted successfully"))
     }
-    
+
     @GetMapping("/search")
     fun searchTags(
         @PathVariable userId: Long,
         @RequestParam query: String
     ): ResponseEntity<List<TagResponse>> {
         val tags = tagService.searchTags(userId, query)
-        val tagResponses = tags.map { tag ->
-            TagResponse(
-                id = tag.id,
-                name = tag.name,
-                color = tag.color,
-                createdAt = tag.createdAt.toString()
-            )
-        }
-        return ResponseEntity.ok(tagResponses)
+        return ResponseEntity.ok(tags.map { it.toResponse() })
+    }
+
+    // -------------------------------------------------------------------------
+    // Tagged content endpoints — used by the Tags screen in the mobile app
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /api/v1/users/{userId}/tags/{tagId}/conversations
+     * Returns all user_conversations associated with a specific tag.
+     */
+    @GetMapping("/{tagId}/conversations")
+    fun getConversationsByTag(
+        @PathVariable userId: Long,
+        @PathVariable tagId: Long
+    ): ResponseEntity<List<TaggedConversationResponse>> {
+        // Verify tag ownership before returning data
+        tagService.getTagById(userId, tagId)
+            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).build()
+
+        val conversations = tagService.getConversationsByTag(userId, tagId)
+        return ResponseEntity.ok(conversations)
+    }
+
+    /**
+     * GET /api/v1/users/{userId}/tags/{tagId}/workouts
+     * Returns all workout_plans associated with a specific tag.
+     */
+    @GetMapping("/{tagId}/workouts")
+    fun getWorkoutsByTag(
+        @PathVariable userId: Long,
+        @PathVariable tagId: Long
+    ): ResponseEntity<List<TaggedWorkoutResponse>> {
+        tagService.getTagById(userId, tagId)
+            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).build()
+
+        val workouts = tagService.getWorkoutsByTag(userId, tagId)
+        return ResponseEntity.ok(workouts)
     }
 }
 
-// Data classes for tag requests and responses
+// -------------------------------------------------------------------------
+// Data classes
+// -------------------------------------------------------------------------
+
 data class CreateTagRequest(
     val name: String,
     val color: String = "#007AFF"
@@ -101,4 +113,27 @@ data class TagResponse(
     val name: String,
     val color: String,
     val createdAt: String
+)
+
+data class TaggedConversationResponse(
+    val id: Long,
+    val title: String?,
+    val conversationType: String?,
+    val createdAt: String
+)
+
+data class TaggedWorkoutResponse(
+    val id: Long,
+    val title: String?,
+    val sport: String?,
+    val position: String?,
+    val createdAt: String
+)
+
+// Extension to keep mapping DRY
+private fun Tag.toResponse() = TagResponse(
+    id = this.id,
+    name = this.name,
+    color = this.color,
+    createdAt = this.createdAt.toString()
 )
