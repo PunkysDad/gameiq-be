@@ -40,7 +40,9 @@ data class UserCreateRequest(
     val primaryPosition: String?,
     val age: Int?,
     val subscriptionTier: String?,
-    val billingCycle: String?
+    val billingCycle: String?,
+    val firstName: String?,
+    val lastName: String?
 )
 
 data class UserStatsResponse(
@@ -75,7 +77,9 @@ class UserController(
             val user = userService.createUser(
                 email = createRequest.email,
                 firebaseUid = createRequest.firebaseUid,
-                displayName = createRequest.displayName
+                displayName = createRequest.displayName,
+                firstName = createRequest.firstName,
+                lastName = createRequest.lastName
             )
             
             // Update with profile info (without subscription)

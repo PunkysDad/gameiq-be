@@ -30,7 +30,9 @@ class UserService(
         displayName: String? = null,
         primarySport: Sport? = null, 
         primaryPosition: Position? = null,
-        age: Int? = null
+        age: Int? = null,
+        firstName: String? = null,
+        lastName: String? = null
     ): User {
         // Check if user already exists
         val existingUser = userRepository.findByFirebaseUid(firebaseUid)
@@ -45,7 +47,9 @@ class UserService(
             subscriptionTier = SubscriptionTier.NONE,
             primarySport = primarySport,
             primaryPosition = primaryPosition,
-            age = age
+            age = age,
+            firstName = firstName,
+            lastName = lastName
         )
         
         return userRepository.save(newUser)
