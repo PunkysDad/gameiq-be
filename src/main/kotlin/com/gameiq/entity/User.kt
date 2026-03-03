@@ -18,6 +18,12 @@ data class User(
     
     @Column(name = "display_name", nullable = false)
     val displayName: String,
+
+    @Column(name = "first_name")
+    val firstName: String? = null,
+
+    @Column(name = "last_name") 
+    val lastName: String? = null,
     
     @Enumerated(EnumType.STRING)
     @Column(name = "subscription_tier", nullable = false)

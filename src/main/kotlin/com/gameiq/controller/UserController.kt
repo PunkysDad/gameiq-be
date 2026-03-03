@@ -38,7 +38,11 @@ data class UserCreateRequest(
     val displayName: String,
     val primarySport: String?,
     val primaryPosition: String?,
-    val age: Int?
+    val age: Int?,
+    val subscriptionTier: String?,
+    val billingCycle: String?,
+    val firstName: String?,
+    val lastName: String?
 )
 
 data class UserStatsResponse(
@@ -73,11 +77,13 @@ class UserController(
             val user = userService.createUser(
                 email = createRequest.email,
                 firebaseUid = createRequest.firebaseUid,
-                displayName = createRequest.displayName
+                displayName = createRequest.displayName,
+                firstName = createRequest.firstName,
+                lastName = createRequest.lastName
             )
             
-            // Update with additional profile info if provided
-            val updatedUser = if (sport != null || position != null || createRequest.age != null) {
+            // Update with profile info (without subscription)
+            var updatedUser = if (sport != null || position != null || createRequest.age != null) {
                 userService.updateUserProfile(
                     userId = user.id,
                     displayName = user.displayName,
@@ -86,6 +92,20 @@ class UserController(
                     age = createRequest.age
                 )
             } else user
+            
+            // Handle subscription tier if provided using existing subscription logic
+            if (createRequest.subscriptionTier != null) {
+                val subscriptionTier = try {
+                    SubscriptionTier.valueOf(createRequest.subscriptionTier.uppercase())
+                } catch (e: Exception) {
+                    SubscriptionTier.NONE
+                }
+                
+                // Use the existing upgradeSubscription method
+                if (subscriptionTier != SubscriptionTier.NONE) {
+                    updatedUser = userService.upgradeSubscription(user.id, subscriptionTier)
+                }
+            }
             
             val response = UserProfileResponse(
                 id = updatedUser.id,
@@ -100,6 +120,8 @@ class UserController(
             )
             ResponseEntity.status(HttpStatus.CREATED).body(response)
         } catch (e: Exception) {
+            println("Error creating user: ${e.message}")
+            e.printStackTrace()
             ResponseEntity.badRequest().build()
         }
     }
