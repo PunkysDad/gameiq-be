@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/v1/users/{userId}/tags")
+@RequestMapping("/users/{userId}/tags")
 class TagController @Autowired constructor(
     private val tagService: TagService
 ) {
@@ -60,16 +60,11 @@ class TagController @Autowired constructor(
     // Tagged content endpoints — used by the Tags screen in the mobile app
     // -------------------------------------------------------------------------
 
-    /**
-     * GET /api/v1/users/{userId}/tags/{tagId}/conversations
-     * Returns all user_conversations associated with a specific tag.
-     */
     @GetMapping("/{tagId}/conversations")
     fun getConversationsByTag(
         @PathVariable userId: Long,
         @PathVariable tagId: Long
     ): ResponseEntity<List<TaggedConversationResponse>> {
-        // Verify tag ownership before returning data
         tagService.getTagById(userId, tagId)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).build()
 
@@ -77,10 +72,6 @@ class TagController @Autowired constructor(
         return ResponseEntity.ok(conversations)
     }
 
-    /**
-     * GET /api/v1/users/{userId}/tags/{tagId}/workouts
-     * Returns all workout_plans associated with a specific tag.
-     */
     @GetMapping("/{tagId}/workouts")
     fun getWorkoutsByTag(
         @PathVariable userId: Long,
@@ -91,6 +82,54 @@ class TagController @Autowired constructor(
 
         val workouts = tagService.getWorkoutsByTag(userId, tagId)
         return ResponseEntity.ok(workouts)
+    }
+
+    // -------------------------------------------------------------------------
+    // Tag assignment — workouts
+    // -------------------------------------------------------------------------
+
+    @PostMapping("/workouts/{workoutPlanId}")
+    fun addTagToWorkout(
+        @PathVariable userId: Long,
+        @PathVariable workoutPlanId: Long,
+        @RequestBody request: AddTagRequest
+    ): ResponseEntity<Map<String, String>> {
+        tagService.addTagToWorkoutPlan(userId, workoutPlanId, request.tagId)
+        return ResponseEntity.ok(mapOf("message" to "Tag added to workout successfully"))
+    }
+
+    @DeleteMapping("/workouts/{workoutPlanId}/{tagId}")
+    fun removeTagFromWorkout(
+        @PathVariable userId: Long,
+        @PathVariable workoutPlanId: Long,
+        @PathVariable tagId: Long
+    ): ResponseEntity<Map<String, String>> {
+        tagService.removeTagFromWorkoutPlan(userId, workoutPlanId, tagId)
+        return ResponseEntity.ok(mapOf("message" to "Tag removed from workout successfully"))
+    }
+
+    // -------------------------------------------------------------------------
+    // Tag assignment — conversations
+    // -------------------------------------------------------------------------
+
+    @PostMapping("/conversations/{conversationId}")
+    fun addTagToConversation(
+        @PathVariable userId: Long,
+        @PathVariable conversationId: Long,
+        @RequestBody request: AddTagRequest
+    ): ResponseEntity<Map<String, String>> {
+        tagService.addTagToConversation(userId, conversationId, request.tagId)
+        return ResponseEntity.ok(mapOf("message" to "Tag added to conversation successfully"))
+    }
+
+    @DeleteMapping("/conversations/{conversationId}/{tagId}")
+    fun removeTagFromConversation(
+        @PathVariable userId: Long,
+        @PathVariable conversationId: Long,
+        @PathVariable tagId: Long
+    ): ResponseEntity<Map<String, String>> {
+        tagService.removeTagFromConversation(userId, conversationId, tagId)
+        return ResponseEntity.ok(mapOf("message" to "Tag removed from conversation successfully"))
     }
 }
 
@@ -106,6 +145,11 @@ data class CreateTagRequest(
 data class UpdateTagRequest(
     val name: String? = null,
     val color: String? = null
+)
+
+// Renamed from AddTagToWorkoutRequest — shared by both workout and conversation endpoints
+data class AddTagRequest(
+    val tagId: Long
 )
 
 data class TagResponse(
@@ -130,7 +174,6 @@ data class TaggedWorkoutResponse(
     val createdAt: String
 )
 
-// Extension to keep mapping DRY
 private fun Tag.toResponse() = TagResponse(
     id = this.id,
     name = this.name,

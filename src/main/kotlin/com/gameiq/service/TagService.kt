@@ -2,7 +2,9 @@ package com.gameiq.service
 
 import com.gameiq.controller.TaggedConversationResponse
 import com.gameiq.controller.TaggedWorkoutResponse
+import com.gameiq.entity.ConversationTag
 import com.gameiq.entity.Tag
+import com.gameiq.entity.WorkoutPlanTag
 import com.gameiq.repository.ClaudeConversationRepository
 import com.gameiq.repository.ConversationTagRepository
 import com.gameiq.repository.TagRepository
@@ -111,49 +113,33 @@ class TagService @Autowired constructor(
     // Tagged content — used by the Tags screen
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns all ClaudeConversations tagged with [tagId] for [userId].
-     * Resolves: conversation_tags → claude_conversations
-     */
     fun getConversationsByTag(userId: Long, tagId: Long): List<TaggedConversationResponse> {
         val links = conversationTagRepository.findByTagId(tagId)
         if (links.isEmpty()) return emptyList()
 
-        val conversationIds = links.map { it.conversationId }
-
-        return claudeConversationRepository.findAllById(conversationIds)
-            .filter { it.user.id == userId } // safety: only return this user's conversations
+        return claudeConversationRepository.findAllById(links.map { it.conversationId })
+            .filter { it.user.id == userId }
             .sortedByDescending { it.createdAt }
             .map { conv ->
                 TaggedConversationResponse(
                     id = conv.id,
-                    // Use userMessage as the display title (first 60 chars)
-                    title = conv.userMessage.take(60).let {
-                        if (conv.userMessage.length > 60) "$it…" else it
-                    },
+                    title = extractConversationTitle(conv.userMessage),
                     conversationType = conv.conversationType.name,
                     createdAt = conv.createdAt.toString()
                 )
             }
     }
 
-    /**
-     * Returns all WorkoutPlans tagged with [tagId] for [userId].
-     * Resolves: workout_plan_tags → workout_plans
-     */
     fun getWorkoutsByTag(userId: Long, tagId: Long): List<TaggedWorkoutResponse> {
         val links = workoutPlanTagRepository.findByTagId(tagId)
         if (links.isEmpty()) return emptyList()
 
-        val workoutIds = links.map { it.workoutPlanId }
-
-        return workoutPlanRepository.findAllById(workoutIds)
-            .filter { it.user.id == userId } // safety: only return this user's workouts
+        return workoutPlanRepository.findAllById(links.map { it.workoutPlanId })
+            .filter { it.user.id == userId }
             .sortedByDescending { it.createdAt }
             .map { plan ->
                 TaggedWorkoutResponse(
                     id = plan.id,
-                    // workoutName is the actual title field on WorkoutPlan
                     title = plan.workoutName
                         ?: "${plan.position.name} ${plan.sport.name} workout",
                     sport = plan.sport.name,
@@ -161,5 +147,71 @@ class TagService @Autowired constructor(
                     createdAt = plan.createdAt.toString()
                 )
             }
+    }
+
+    // -------------------------------------------------------------------------
+    // Tag assignment — workouts
+    // -------------------------------------------------------------------------
+
+    fun addTagToWorkoutPlan(userId: Long, workoutPlanId: Long, tagId: Long) {
+        val tag = tagRepository.findById(tagId)
+            .orElseThrow { IllegalArgumentException("Tag not found: $tagId") }
+        require(tag.user.id == userId) { "Tag does not belong to user $userId" }
+
+        val workout = workoutPlanRepository.findById(workoutPlanId)
+            .orElseThrow { IllegalArgumentException("Workout plan not found: $workoutPlanId") }
+        require(workout.user.id == userId) { "Workout plan does not belong to user $userId" }
+
+        if (workoutPlanTagRepository.existsByWorkoutPlanIdAndTagId(workoutPlanId, tagId)) return
+
+        workoutPlanTagRepository.save(WorkoutPlanTag(workoutPlanId = workoutPlanId, tagId = tagId))
+    }
+
+    fun removeTagFromWorkoutPlan(userId: Long, workoutPlanId: Long, tagId: Long) {
+        val tag = tagRepository.findById(tagId)
+            .orElseThrow { IllegalArgumentException("Tag not found: $tagId") }
+        require(tag.user.id == userId) { "Tag does not belong to user $userId" }
+
+        workoutPlanTagRepository.deleteByWorkoutPlanIdAndTagId(workoutPlanId, tagId)
+    }
+
+    // -------------------------------------------------------------------------
+    // Tag assignment — conversations
+    // -------------------------------------------------------------------------
+
+    fun addTagToConversation(userId: Long, conversationId: Long, tagId: Long) {
+        val tag = tagRepository.findById(tagId)
+            .orElseThrow { IllegalArgumentException("Tag not found: $tagId") }
+        require(tag.user.id == userId) { "Tag does not belong to user $userId" }
+
+        val conversation = claudeConversationRepository.findById(conversationId)
+            .orElseThrow { IllegalArgumentException("Conversation not found: $conversationId") }
+        require(conversation.user.id == userId) { "Conversation does not belong to user $userId" }
+
+        if (conversationTagRepository.existsByConversationIdAndTagId(conversationId, tagId)) return
+
+        conversationTagRepository.save(ConversationTag(conversationId = conversationId, tagId = tagId))
+    }
+
+    fun removeTagFromConversation(userId: Long, conversationId: Long, tagId: Long) {
+        val tag = tagRepository.findById(tagId)
+            .orElseThrow { IllegalArgumentException("Tag not found: $tagId") }
+        require(tag.user.id == userId) { "Tag does not belong to user $userId" }
+
+        conversationTagRepository.deleteByConversationIdAndTagId(conversationId, tagId)
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private fun extractConversationTitle(userMessage: String): String {
+        val marker = "question:"
+        val idx = userMessage.indexOf(marker, ignoreCase = true)
+        return if (idx != -1) {
+            userMessage.substring(idx + marker.length).trim()
+        } else {
+            userMessage.trim()
+        }
     }
 }

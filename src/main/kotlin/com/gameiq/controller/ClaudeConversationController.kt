@@ -1,17 +1,18 @@
 package com.gameiq.controller
 
-import com.gameiq.service.ClaudeService
 import com.gameiq.entity.*
+import com.gameiq.repository.ClaudeConversationRepository
+import com.gameiq.service.ClaudeService
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import org.springframework.http.HttpStatus
 
 data class ChatRequest(
     val message: String,
     val sessionId: String? = null,
     val sport: String? = null,
     val position: String? = null,
-    val conversationType: String = "TRAINING_ADVICE" // Fixed: use actual enum value
+    val conversationType: String = "TRAINING_ADVICE"
 )
 
 data class ChatResponse(
@@ -30,9 +31,10 @@ data class ChatResponse(
 @RequestMapping("/conversations")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class ClaudeConversationController(
-    private val claudeService: ClaudeService
+    private val claudeService: ClaudeService,
+    private val claudeConversationRepository: ClaudeConversationRepository
 ) {
-    
+
     @PostMapping("/chat")
     fun chatWithClaude(
         @RequestParam userId: Long,
@@ -47,20 +49,7 @@ class ClaudeConversationController(
                 position = request.position?.let { Position.valueOf(it.uppercase()) },
                 conversationType = ConversationType.valueOf(request.conversationType.uppercase())
             )
-            
-            val response = ChatResponse(
-                id = conversation.id,
-                sessionId = conversation.sessionId,
-                userMessage = conversation.userMessage,
-                claudeResponse = conversation.claudeResponse,
-                sport = conversation.sport?.name,
-                position = conversation.position?.name,
-                conversationType = conversation.conversationType.name,
-                timestamp = conversation.createdAt.toString(),
-                tokenUsage = (conversation.tokensUsedInput ?: 0) + (conversation.tokensUsedOutput ?: 0)
-            )
-            
-            ResponseEntity.ok(response)
+            ResponseEntity.ok(conversation.toChatResponse())
         } catch (e: IllegalStateException) {
             ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
                 ChatResponse(
@@ -79,7 +68,7 @@ class ClaudeConversationController(
             ResponseEntity.badRequest().build()
         }
     }
-    
+
     @GetMapping("/available-options")
     fun getAvailableConversationOptions(): ResponseEntity<Map<String, List<String>>> {
         return ResponseEntity.ok(mapOf(
@@ -92,26 +81,31 @@ class ClaudeConversationController(
     @GetMapping("/user/{userId}")
     fun getUserConversations(@PathVariable userId: Long): ResponseEntity<List<ChatResponse>> {
         return try {
-            // Get all conversations for the user from your service
-            val conversations = claudeService.getUserConversations(userId)
-            
-            val chatResponses = conversations.map { conversation ->
-                ChatResponse(
-                    id = conversation.id,
-                    sessionId = conversation.sessionId,
-                    userMessage = conversation.userMessage,
-                    claudeResponse = conversation.claudeResponse,
-                    sport = conversation.sport?.name,
-                    position = conversation.position?.name,
-                    conversationType = conversation.conversationType.name,
-                    timestamp = conversation.createdAt.toString(),
-                    tokenUsage = (conversation.tokensUsedInput ?: 0) + (conversation.tokensUsedOutput ?: 0)
-                )
-            }
-            
+            val chatResponses = claudeService.getUserConversations(userId)
+                .map { it.toChatResponse() }
             ResponseEntity.ok(chatResponses)
         } catch (e: Exception) {
             ResponseEntity.badRequest().build()
         }
     }
+
+    @GetMapping("/{conversationId}")
+    fun getConversationById(@PathVariable conversationId: Long): ResponseEntity<ChatResponse> {
+        val conversation = claudeConversationRepository.findById(conversationId)
+            .orElse(null) ?: return ResponseEntity.notFound().build()
+        return ResponseEntity.ok(conversation.toChatResponse())
+    }
 }
+
+// Extension to avoid repeating the mapping in every handler
+private fun ClaudeConversation.toChatResponse() = ChatResponse(
+    id = this.id,
+    sessionId = this.sessionId,
+    userMessage = this.userMessage,
+    claudeResponse = this.claudeResponse,
+    sport = this.sport?.name,
+    position = this.position?.name,
+    conversationType = this.conversationType.name,
+    timestamp = this.createdAt.toString(),
+    tokenUsage = (this.tokensUsedInput ?: 0) + (this.tokensUsedOutput ?: 0)
+)

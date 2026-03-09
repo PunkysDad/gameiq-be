@@ -12,56 +12,54 @@ class CoachingService(
     private val coachingAnalysisRepository: CoachingAnalysisRepository,
     private val coachingScenarioRepository: CoachingScenarioRepository
 ) {
-    
+
     fun analyzeCoachingSituation(
         userId: Long,
         sport: String,
         situation: CoachingSituationRequest
     ): CoachingAnalysisResponse {
-        
-        // Generate coaching-specific prompt using historical data
+
         val prompt = generateCoachingPrompt(sport, situation)
-        
-        // Use existing ClaudeService chatWithClaude method instead of getCoachingAnalysis
+
         val conversation = claudeService.chatWithClaude(
             userId = userId,
             message = prompt,
             sport = Sport.valueOf(sport.uppercase()),
             conversationType = ConversationType.GAME_STRATEGY
         )
-        
-        // Save analysis for user
+
         val analysis = CoachingAnalysis(
             userId = userId,
             sport = sport,
             scenario = situation.toString(),
             recommendation = conversation.claudeResponse,
-            successProbability = "Based on historical analysis", // Simplified for now
+            successProbability = "Based on historical analysis",
             reasoning = "Strategic analysis based on coaching principles",
             alternatives = "Alternative strategies available"
         )
-        
+
         coachingAnalysisRepository.save(analysis)
-        
+
         return CoachingAnalysisResponse(
             sport = sport,
             recommendation = conversation.claudeResponse,
             successProbability = "Based on historical analysis",
-            reasoning = "Strategic analysis based on coaching principles", 
+            reasoning = "Strategic analysis based on coaching principles",
             alternatives = "Alternative strategies available",
-            timestamp = LocalDateTime.now().toString()
+            timestamp = LocalDateTime.now().toString(),
+            conversationId = conversation.id
         )
     }
-    
+
     private fun generateCoachingPrompt(sport: String, situation: CoachingSituationRequest): String {
         return when (sport.uppercase()) {
-            "FOOTBALL" -> generateFootballCoachingPrompt(situation)
-            "BASKETBALL" -> generateBasketballCoachingPrompt(situation) 
-            "BASEBALL" -> generateBaseballCoachingPrompt(situation)
-            else -> generateGenericCoachingPrompt(sport, situation)
+            "FOOTBALL"   -> generateFootballCoachingPrompt(situation)
+            "BASKETBALL" -> generateBasketballCoachingPrompt(situation)
+            "BASEBALL"   -> generateBaseballCoachingPrompt(situation)
+            else         -> generateGenericCoachingPrompt(sport, situation)
         }
     }
-    
+
     private fun generateFootballCoachingPrompt(situation: CoachingSituationRequest): String {
         return """
         You are an elite NFL/college football coach with 20+ years of experience.
@@ -84,7 +82,7 @@ class CoachingService(
         Provide a comprehensive strategic analysis.
         """.trimIndent()
     }
-    
+
     private fun generateBasketballCoachingPrompt(situation: CoachingSituationRequest): String {
         return """
         You are an elite basketball coach with extensive experience.
@@ -92,7 +90,7 @@ class CoachingService(
         Provide strategic recommendations based on proven coaching principles.
         """.trimIndent()
     }
-    
+
     private fun generateBaseballCoachingPrompt(situation: CoachingSituationRequest): String {
         return """
         You are an elite baseball coach and strategist.
@@ -100,7 +98,7 @@ class CoachingService(
         Provide strategic recommendations based on historical data and proven tactics.
         """.trimIndent()
     }
-    
+
     private fun generateGenericCoachingPrompt(sport: String, situation: CoachingSituationRequest): String {
         return """
         You are an elite $sport coach with extensive experience.
@@ -110,7 +108,6 @@ class CoachingService(
     }
 }
 
-// Data classes that match what the controller expects
 data class CoachingSituationRequest(
     val sport: String,
     val context: Map<String, String>
@@ -122,5 +119,6 @@ data class CoachingAnalysisResponse(
     val successProbability: String,
     val reasoning: String,
     val alternatives: String,
-    val timestamp: String
+    val timestamp: String,
+    val conversationId: Long
 )

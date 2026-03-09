@@ -121,30 +121,35 @@ class ClaudeService(
         // Convert string parameters to enums
         val sportEnum = Sport.valueOf(sport.uppercase())
         val positionEnum = when (position.uppercase().replace(" ", "")) {
-            "WIDERECEIVER" -> Position.WR
-            "QUARTERBACK" -> Position.QB
-            "RUNNINGBACK" -> Position.RB
-            "OFFENSIVELINE" -> Position.OL
-            "TIGHTEND" -> Position.TE
-            "LINEBACKER" -> Position.LB
-            "DEFENSIVEBACK" -> Position.DB
-            "DEFENSIVELINE" -> Position.DL
-            "POINTGUARD" -> Position.PG
-            "SHOOTINGGUARD" -> Position.SG
-            "SMALLFORWARD" -> Position.SF
-            "POWERFORWARD" -> Position.PF
-            "CENTER" -> Position.CENTER
-            "PITCHER" -> Position.PITCHER
-            "CATCHER" -> Position.CATCHER
-            "INFIELD" -> Position.INFIELD
-            "OUTFIELD" -> Position.OUTFIELD
-            "GOALKEEPER" -> Position.GOALKEEPER
-            "DEFENDER" -> Position.DEFENDER
-            "MIDFIELDER" -> Position.MIDFIELDER
-            "FORWARD" -> Position.FORWARD
-            "WINGER" -> Position.WINGER
-            "DEFENSEMAN" -> Position.DEFENSEMAN
-            "GOALIE" -> Position.GOALIE
+            // Football — abbreviations and full names
+            "QB", "QUARTERBACK"          -> Position.QB
+            "RB", "RUNNINGBACK"          -> Position.RB
+            "WR", "WIDERECEIVER"         -> Position.WR
+            "OL", "OFFENSIVELINE"        -> Position.OL
+            "TE", "TIGHTEND"             -> Position.TE
+            "LB", "LINEBACKER"           -> Position.LB
+            "DB", "DEFENSIVEBACK"        -> Position.DB
+            "DL", "DEFENSIVELINE"        -> Position.DL
+            // Basketball
+            "PG", "POINTGUARD"           -> Position.PG
+            "SG", "SHOOTINGGUARD"        -> Position.SG
+            "SF", "SMALLFORWARD"         -> Position.SF
+            "PF", "POWERFORWARD"         -> Position.PF
+            "C", "CENTER"                -> Position.CENTER
+            // Baseball
+            "PITCHER"                    -> Position.PITCHER
+            "CATCHER"                    -> Position.CATCHER
+            "INFIELD"                    -> Position.INFIELD
+            "OUTFIELD"                   -> Position.OUTFIELD
+            // Soccer
+            "GOALKEEPER"                 -> Position.GOALKEEPER
+            "DEFENDER"                   -> Position.DEFENDER
+            "MIDFIELDER"                 -> Position.MIDFIELDER
+            "FORWARD"                    -> Position.FORWARD
+            // Hockey
+            "WINGER"                     -> Position.WINGER
+            "DEFENSEMAN"                 -> Position.DEFENSEMAN
+            "GOALIE"                     -> Position.GOALIE
             else -> throw IllegalArgumentException("Unknown position: $position")
         }
         
