@@ -9,52 +9,58 @@ data class User(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
-    
+
     @Column(unique = true, nullable = false)
     val email: String,
-    
+
     @Column(name = "firebase_uid", unique = true, nullable = false)
     val firebaseUid: String,
-    
+
     @Column(name = "display_name", nullable = false)
     val displayName: String,
 
     @Column(name = "first_name")
     val firstName: String? = null,
 
-    @Column(name = "last_name") 
+    @Column(name = "last_name")
     val lastName: String? = null,
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "subscription_tier", nullable = false)
-    val subscriptionTier: SubscriptionTier = SubscriptionTier.NONE,
-    
+    val subscriptionTier: SubscriptionTier = SubscriptionTier.TRIAL,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "primary_sport")
     val primarySport: Sport? = null,
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "primary_position")
     val primaryPosition: Position? = null,
-    
+
     @Column(name = "age")
     val age: Int? = null,
-    
+
+    @Column(name = "trial_chats_used", nullable = false)
+    val trialChatsUsed: Int = 0,
+
+    @Column(name = "trial_workouts_used", nullable = false)
+    val trialWorkoutsUsed: Int = 0,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
-    
+
     @Column(name = "updated_at", nullable = false)
     val updatedAt: LocalDateTime = LocalDateTime.now(),
-    
+
     @Column(name = "last_active_at")
     val lastActiveAt: LocalDateTime? = null,
-    
+
     @Column(name = "is_active", nullable = false)
     val isActive: Boolean = true
 )
 
 enum class SubscriptionTier {
-    NONE, BASIC, PREMIUM
+    TRIAL, NONE, BASIC, PREMIUM
 }
 
 enum class Sport {
@@ -62,18 +68,14 @@ enum class Sport {
 }
 
 enum class Position {
-    // Football positions
+    // Football
     QB, RB, WR, OL, TE, LB, DB, DL,
-    
-    // Basketball positions
+    // Basketball
     PG, SG, SF, PF, C,
-    
-    // Baseball positions
+    // Baseball
     PITCHER, CATCHER, INFIELD, OUTFIELD,
-    
-    // Soccer positions
+    // Soccer
     GOALKEEPER, DEFENDER, MIDFIELDER, FORWARD,
-    
-    // Hockey positions
+    // Hockey
     CENTER, WINGER, DEFENSEMAN, GOALIE
 }

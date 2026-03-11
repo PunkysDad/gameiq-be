@@ -44,7 +44,7 @@ class UserService(
             firebaseUid = firebaseUid,
             email = email,
             displayName = displayName ?: email.substringBefore("@"), // Use email prefix as default display name
-            subscriptionTier = SubscriptionTier.NONE,
+            subscriptionTier = SubscriptionTier.TRIAL,
             primarySport = primarySport,
             primaryPosition = primaryPosition,
             age = age,
@@ -130,6 +130,13 @@ class UserService(
         )
         
         return userRepository.save(deactivatedUser)
+    }
+
+    fun deleteUser(userId: Long) {
+        if (!userRepository.existsById(userId)) {
+            throw IllegalArgumentException("User not found: $userId")
+        }
+        userRepository.deleteById(userId)
     }
     
     // ===== NEW QUIZ SYSTEM INTEGRATION =====
@@ -345,18 +352,15 @@ class UserService(
         }
     }
     
+    
     private fun checkQuizRateLimit(userId: Long) {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found") 
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("User not found")
         }
-        
-        // Check subscription tier for rate limiting
+
         when (user.subscriptionTier) {
-            SubscriptionTier.NONE -> throw IllegalStateException("Active subscription required for quiz generation")
-            SubscriptionTier.BASIC, SubscriptionTier.PREMIUM -> {
-                // Both tiers get unlimited quiz access
-                // No additional rate limiting needed
-            }
+            SubscriptionTier.NONE -> throw IllegalStateException("Active subscription required for quiz generation.")
+            else -> { /* TRIAL, BASIC, PREMIUM all get quiz access */ }
         }
     }
     

@@ -78,10 +78,12 @@ class ClaudeConversationController(
         ))
     }
 
+    
     @GetMapping("/user/{userId}")
     fun getUserConversations(@PathVariable userId: Long): ResponseEntity<List<ChatResponse>> {
         return try {
             val chatResponses = claudeService.getUserConversations(userId)
+                .filter { it.conversationType != ConversationType.WORKOUT_CUSTOMIZATION }
                 .map { it.toChatResponse() }
             ResponseEntity.ok(chatResponses)
         } catch (e: Exception) {

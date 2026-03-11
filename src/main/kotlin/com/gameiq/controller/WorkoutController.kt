@@ -62,9 +62,39 @@ class WorkoutController @Autowired constructor(
 
             ResponseEntity.ok(workoutPlanDTO)
 
+        } catch (e: IllegalStateException) {
+            // Trial/subscription limit errors — return message so frontend can show paywall
+            logger.warn("Subscription limit for userId=${request.userId}: ${e.message}")
+            ResponseEntity.badRequest().body(
+                WorkoutPlanDTO(
+                    id = "",
+                    title = "",
+                    description = e.message ?: "Subscription limit reached.",
+                    estimatedDuration = 0,
+                    exercises = emptyList(),
+                    focusAreas = emptyList(),
+                    createdAt = "",
+                    sport = "",
+                    position = "",
+                    generatedContent = null
+                )
+            )
         } catch (e: Exception) {
             logger.error("Failed to generate workout for userId=${request.userId}: ${e.message}", e)
-            ResponseEntity.badRequest().build()
+            ResponseEntity.badRequest().body(
+                WorkoutPlanDTO(
+                    id = "",
+                    title = "",
+                    description = e.message ?: "Failed to generate workout.",
+                    estimatedDuration = 0,
+                    exercises = emptyList(),
+                    focusAreas = emptyList(),
+                    createdAt = "",
+                    sport = "",
+                    position = "",
+                    generatedContent = null
+                )
+            )
         }
     }
 

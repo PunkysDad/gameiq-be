@@ -107,6 +107,13 @@ interface ClaudeConversationRepository : JpaRepository<ClaudeConversation, Long>
     
     @Query("SELECT COUNT(DISTINCT cc.sessionId) FROM ClaudeConversation cc WHERE cc.user = :user")
     fun countUniqueSessionsByUser(@Param("user") user: User): Long
+
+    @Query("""
+        SELECT COUNT(cc) FROM ClaudeConversation cc 
+        WHERE cc.user.id = :userId 
+        AND cc.conversationType != com.gameiq.entity.ConversationType.WORKOUT_CUSTOMIZATION
+    """)
+    fun countChatConversationsByUserId(@Param("userId") userId: Long): Long
     
     // Popular conversation types
     @Query("""
