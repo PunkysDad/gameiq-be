@@ -31,12 +31,22 @@ class TagService @Autowired constructor(
     // Tag CRUD
     // -------------------------------------------------------------------------
 
-    fun getUserTags(userId: Long): List<Tag> =
-        tagRepository.findByUserIdOrderByNameAsc(userId)
+    fun getUserTags(userId: Long): List<Tag> {
+        val user = userRepository.findById(userId)
+            .orElseThrow { IllegalArgumentException("User not found: $userId") }
+        if (user.subscriptionTier != com.gameiq.entity.SubscriptionTier.PREMIUM) return emptyList()
+        return tagRepository.findByUserIdOrderByNameAsc(userId)
+    }
 
     fun createTag(userId: Long, name: String, color: String = "#007AFF"): Tag {
-        userRepository.findById(userId)
+        val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found: $userId") }
+
+        if (user.subscriptionTier != com.gameiq.entity.SubscriptionTier.PREMIUM) {
+            throw IllegalStateException(
+                "Tagging is a Premium feature. Upgrade to Premium (\$19.99/mo) to organize your content with tags."
+            )
+        }
 
         if (tagRepository.existsByUserIdAndNameIgnoreCase(userId, name.trim())) {
             throw IllegalArgumentException("Tag '${name.trim()}' already exists for this user")
