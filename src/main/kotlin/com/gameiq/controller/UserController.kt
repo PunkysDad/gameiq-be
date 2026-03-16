@@ -231,7 +231,7 @@ class UserController(
             val lastWorkoutDate = workouts.maxByOrNull { it.createdAt }?.createdAt
             
             val mostRecentActivity = listOfNotNull(lastConversationDate, lastWorkoutDate)
-                .maxByOrNull { it } ?: LocalDateTime.now().minusDays(365)
+                .maxByOrNull { it } ?: LocalDateTime.now()
             
             val daysSinceLastActivity = ChronoUnit.DAYS.between(mostRecentActivity, LocalDateTime.now()).toInt()
             

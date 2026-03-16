@@ -30,7 +30,7 @@ class CoachingController(
     fun analyzeCoachingSituation(
         @RequestBody request: CoachingSituationRequest,
         @RequestParam userId: Long
-    ): ResponseEntity<CoachingAnalysisResponse> {
+    ): ResponseEntity<Any> {
         return try {
             val sport = Sport.valueOf(request.sport.uppercase())
             val situationDescription = request.situation.entries.joinToString(", ") { "${it.key}: ${it.value}" }
@@ -53,8 +53,14 @@ class CoachingController(
                     conversationId = conversation.id
                 )
             )
+        } catch (e: IllegalStateException) {
+            ResponseEntity.badRequest().body(
+                mapOf("message" to (e.message ?: "Subscription limit reached."))
+            )
         } catch (e: Exception) {
-            ResponseEntity.badRequest().build()
+            ResponseEntity.badRequest().body(
+                mapOf("message" to (e.message ?: "Failed to analyze coaching situation."))
+            )
         }
     }
 
