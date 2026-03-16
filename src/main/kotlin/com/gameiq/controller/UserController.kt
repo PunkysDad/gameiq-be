@@ -7,6 +7,7 @@ import com.gameiq.entity.SubscriptionTier
 import com.gameiq.service.UserService
 import com.gameiq.service.ClaudeService
 import com.gameiq.service.WorkoutService
+import com.gameiq.repository.ClaudeConversationRepository
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.http.HttpStatus
@@ -54,13 +55,19 @@ data class UserStatsResponse(
     val currentStreak: Int
 )
 
+
+data class SubscriptionUpdateRequest(
+    val subscriptionTier: String
+)
+
 @RestController
 @RequestMapping("/users")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class UserController(
     private val userService: UserService,
     private val claudeService: ClaudeService,
-    private val workoutService: WorkoutService
+    private val workoutService: WorkoutService,
+    private val claudeConversationRepository: ClaudeConversationRepository
 ) {
     
     @PostMapping
@@ -211,7 +218,7 @@ class UserController(
     fun getUserStats(@PathVariable userId: Long): ResponseEntity<UserStatsResponse> {
         return try {
             // Get actual conversation count from ClaudeService
-            val conversationCount = claudeService.getUserConversations(userId).size.toLong()
+            val conversationCount = claudeConversationRepository.countChatConversationsByUserId(userId)
             
             // Get actual workout count from WorkoutService
             val workoutCount = workoutService.getUserWorkoutPlans(userId).size.toLong()
@@ -224,7 +231,7 @@ class UserController(
             val lastWorkoutDate = workouts.maxByOrNull { it.createdAt }?.createdAt
             
             val mostRecentActivity = listOfNotNull(lastConversationDate, lastWorkoutDate)
-                .maxByOrNull { it } ?: LocalDateTime.now().minusDays(365)
+                .maxByOrNull { it } ?: LocalDateTime.now()
             
             val daysSinceLastActivity = ChronoUnit.DAYS.between(mostRecentActivity, LocalDateTime.now()).toInt()
             
@@ -250,6 +257,35 @@ class UserController(
                 currentStreak = 0
             )
             ResponseEntity.ok(emptyStats)
+        }
+    }
+
+    @PutMapping("/{userId}/subscription")
+    fun updateSubscriptionTier(
+        @PathVariable userId: Long,
+        @RequestBody request: SubscriptionUpdateRequest
+    ): ResponseEntity<Map<String, Any>> {
+        return try {
+            val subscriptionTier = try {
+                SubscriptionTier.valueOf(request.subscriptionTier.uppercase())
+            } catch (e: Exception) {
+                return ResponseEntity.badRequest().body(mapOf(
+                    "success" to false,
+                    "message" to "Invalid subscription tier: ${request.subscriptionTier}"
+                ))
+            }
+
+            val updatedUser = userService.upgradeSubscription(userId, subscriptionTier)
+            ResponseEntity.ok(mapOf(
+                "success" to true,
+                "message" to "Subscription updated to ${request.subscriptionTier}",
+                "newTier" to updatedUser.subscriptionTier.name
+            ))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(mapOf(
+                "success" to false,
+                "message" to e.message.orEmpty()
+            ))
         }
     }
     
@@ -284,12 +320,12 @@ class UserController(
     }
     
     @DeleteMapping("/{userId}")
-    fun deactivateUser(@PathVariable userId: Long): ResponseEntity<Map<String, Any>> {
+    fun deleteUser(@PathVariable userId: Long): ResponseEntity<Map<String, Any>> {
         return try {
-            userService.deactivateUser(userId)
+            userService.deleteUser(userId)
             ResponseEntity.ok(mapOf(
                 "success" to true,
-                "message" to "User deactivated successfully"
+                "message" to "User deleted successfully"
             ))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(mapOf(

@@ -143,6 +143,7 @@ data class QuizAttemptSession(
 
 // Workout system request/response DTOs
 data class WorkoutGenerationRequest(
+    val userId: Long,  
     val sport: String,
     val position: String,
     val experienceLevel: String, // "beginner", "intermediate", "advanced"

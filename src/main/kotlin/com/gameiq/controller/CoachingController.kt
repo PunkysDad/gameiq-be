@@ -4,12 +4,10 @@ import com.gameiq.service.ClaudeService
 import com.gameiq.entity.*
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import org.springframework.http.HttpStatus
 
-// Data classes for coaching functionality
 data class CoachingSituationRequest(
     val sport: String,
-    val situation: Map<String, String> // e.g. "downDistance" -> "4th and 2"
+    val situation: Map<String, String>
 )
 
 data class CoachingAnalysisResponse(
@@ -17,51 +15,55 @@ data class CoachingAnalysisResponse(
     val situation: String,
     val recommendation: String,
     val reasoning: List<String>,
-    val timestamp: String
+    val timestamp: String,
+    val conversationId: Long
 )
 
 @RestController
 @RequestMapping("/coaching")
 @CrossOrigin(origins = ["http://localhost:3000", "http://localhost:19006"])
 class CoachingController(
-    private val claudeService: ClaudeService // Use existing ClaudeService instead
+    private val claudeService: ClaudeService
 ) {
-    
+
     @PostMapping("/analyze")
     fun analyzeCoachingSituation(
         @RequestBody request: CoachingSituationRequest,
         @RequestParam userId: Long
-    ): ResponseEntity<CoachingAnalysisResponse> {
-        
+    ): ResponseEntity<Any> {
         return try {
             val sport = Sport.valueOf(request.sport.uppercase())
-            
-            // Create a simple coaching prompt
             val situationDescription = request.situation.entries.joinToString(", ") { "${it.key}: ${it.value}" }
             val coachingMessage = "Analyze this ${sport.name} situation: $situationDescription. Provide strategic recommendation."
-            
-            // Use existing ClaudeService for now (simplified approach)
+
             val conversation = claudeService.chatWithClaude(
                 userId = userId,
                 message = coachingMessage,
                 sport = sport,
                 conversationType = ConversationType.GAME_STRATEGY
             )
-            
-            val response = CoachingAnalysisResponse(
-                sport = sport.name,
-                situation = situationDescription,
-                recommendation = conversation.claudeResponse,
-                reasoning = listOf("Analysis based on historical data and strategic principles"),
-                timestamp = conversation.createdAt.toString()
+
+            ResponseEntity.ok(
+                CoachingAnalysisResponse(
+                    sport = sport.name,
+                    situation = situationDescription,
+                    recommendation = conversation.claudeResponse,
+                    reasoning = listOf("Analysis based on historical data and strategic principles"),
+                    timestamp = conversation.createdAt.toString(),
+                    conversationId = conversation.id
+                )
             )
-            
-            ResponseEntity.ok(response)
+        } catch (e: IllegalStateException) {
+            ResponseEntity.badRequest().body(
+                mapOf("message" to (e.message ?: "Subscription limit reached."))
+            )
         } catch (e: Exception) {
-            ResponseEntity.badRequest().build()
+            ResponseEntity.badRequest().body(
+                mapOf("message" to (e.message ?: "Failed to analyze coaching situation."))
+            )
         }
     }
-    
+
     @GetMapping("/test")
     fun testCoaching(): ResponseEntity<Map<String, String>> {
         return ResponseEntity.ok(mapOf(
