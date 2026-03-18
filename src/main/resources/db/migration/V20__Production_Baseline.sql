@@ -2,7 +2,7 @@
 -- Consolidated production baseline schema.
 -- Replaces all previous migrations (V1–V19) which had type conflicts.
 -- This migration only runs on a fresh database where V1 is the current version.
-
+DELETE FROM flyway_schema_history WHERE version = '20';
 -- ── Functions ─────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
