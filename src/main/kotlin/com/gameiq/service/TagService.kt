@@ -5,6 +5,7 @@ import com.gameiq.controller.TaggedWorkoutResponse
 import com.gameiq.entity.ConversationTag
 import com.gameiq.entity.Tag
 import com.gameiq.entity.WorkoutPlanTag
+import com.gameiq.entity.SubscriptionTier
 import com.gameiq.repository.ClaudeConversationRepository
 import com.gameiq.repository.ConversationTagRepository
 import com.gameiq.repository.TagRepository
@@ -34,7 +35,8 @@ class TagService @Autowired constructor(
     fun getUserTags(userId: Long): List<Tag> {
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found: $userId") }
-        if (user.subscriptionTier != com.gameiq.entity.SubscriptionTier.PREMIUM) return emptyList()
+        if (user.subscriptionTier != SubscriptionTier.PREMIUM &&
+            user.subscriptionTier != SubscriptionTier.TRIAL) return emptyList()
         return tagRepository.findByUserIdOrderByNameAsc(userId)
     }
 
@@ -42,7 +44,8 @@ class TagService @Autowired constructor(
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found: $userId") }
 
-        if (user.subscriptionTier != com.gameiq.entity.SubscriptionTier.PREMIUM) {
+        if (user.subscriptionTier != SubscriptionTier.PREMIUM &&
+            user.subscriptionTier != SubscriptionTier.TRIAL) {
             throw IllegalStateException(
                 "Tagging is a Premium feature. Upgrade to Premium (\$19.99/mo) to organize your content with tags."
             )
