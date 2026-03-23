@@ -43,7 +43,8 @@ class ClaudeService(
         sport: Sport? = null,
         position: Position? = null,
         conversationType: ConversationType = ConversationType.GENERAL_SPORTS_QUESTION,
-        skipRateLimitAndTracking: Boolean = false   // ← add this
+        skipRateLimitAndTracking: Boolean = false,
+        maxTokens: Int = 1000
     ): ClaudeConversation {
         println("DEBUG: Starting chatWithClaude for userId: $userId")
 
@@ -72,7 +73,7 @@ class ClaudeService(
 
         println("DEBUG: About to call Claude API")
         val startTime = System.currentTimeMillis()
-        val claudeResponse = callClaudeApi(message, systemPrompt, conversationHistory)
+        val claudeResponse = callClaudeApi(message, systemPrompt, conversationHistory, maxTokens)
         println("DEBUG: Claude API call completed")
         val responseTime = System.currentTimeMillis() - startTime
 
@@ -179,10 +180,6 @@ class ClaudeService(
             Format the workout clearly with sections and proper structure.
         """.trimIndent()
 
-        // chatWithClaude also calls checkRateLimit(isWorkout=false) internally — that's fine,
-        // the workout-specific check above already ran. The cost-based checks in BASIC/PREMIUM
-        // are idempotent and the trial check for chats won't fire because this is a workout path.
-        
         val conversation = chatWithClaude(
             userId = userId,
             message = userMessage,
@@ -190,7 +187,8 @@ class ClaudeService(
             sport = sportEnum,
             position = positionEnum,
             conversationType = ConversationType.WORKOUT_CUSTOMIZATION,
-            skipRateLimitAndTracking = true   // ← rate limit + increment already handled above
+            skipRateLimitAndTracking = true,
+            maxTokens = 4000
         )
 
         val workoutTitle = extractSimpleWorkoutTitle(conversation.claudeResponse)
@@ -590,7 +588,8 @@ class ClaudeService(
     private fun callClaudeApi(
         message: String,
         systemPrompt: String,
-        conversationHistory: List<ClaudeConversation> = emptyList()
+        conversationHistory: List<ClaudeConversation> = emptyList(),
+        maxTokens: Int = 1000
     ): ClaudeApiResponse {
         val headers = HttpHeaders().apply {
             set("x-api-key", claudeApiKey)
@@ -609,7 +608,7 @@ class ClaudeService(
 
         val requestBody = mapOf(
             "model" to claudeModel,
-            "max_tokens" to 1000,
+            "max_tokens" to maxTokens,
             "system" to systemPrompt,
             "messages" to messages
         )
