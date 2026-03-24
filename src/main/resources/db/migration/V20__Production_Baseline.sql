@@ -2,7 +2,6 @@
 -- Consolidated production baseline schema.
 -- Replaces all previous migrations (V1–V19) which had type conflicts.
 -- This migration only runs on a fresh database where V1 is the current version.
-DELETE FROM flyway_schema_history WHERE version = '20';
 -- ── Functions ─────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
@@ -475,28 +474,3 @@ CREATE INDEX idx_social_shares_platform_date ON public.social_shares USING btree
 
 CREATE TRIGGER update_social_shares_updated_at BEFORE UPDATE ON public.social_shares
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
--- ── Mark V2–V19 as resolved in flyway_schema_history ─────────────────────────
--- This prevents Flyway from attempting to run the old broken migrations.
-
-INSERT INTO public.flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success)
-VALUES
-  (2,  '2',  'Create Missing Tables',              'SQL', 'V2__Create_Missing_Tables.sql',              -1, 'baseline', now(), 0, true),
-  (3,  '3',  'Add Firebase Auth',                  'SQL', 'V3__Add_Firebase_Auth.sql',                  -1, 'baseline', now(), 0, true),
-  (4,  '4',  'Update Schema',                      'SQL', 'V4__Update_Schema.sql',                      -1, 'baseline', now(), 0, true),
-  (5,  '5',  'Add Claude Conversations',           'SQL', 'V5__Add_Claude_Conversations.sql',           -1, 'baseline', now(), 0, true),
-  (6,  '6',  'Add Quiz System',                    'SQL', 'V6__Add_Quiz_System.sql',                    -1, 'baseline', now(), 0, true),
-  (7,  '7',  'Add Workout Plans',                  'SQL', 'V7__Add_Workout_Plans.sql',                  -1, 'baseline', now(), 0, true),
-  (8,  '8',  'Add Social Shares',                  'SQL', 'V8__Add_Social_Shares.sql',                  -1, 'baseline', now(), 0, true),
-  (9,  '9',  'Add Tags System',                    'SQL', 'V9__Add_Tags_System.sql',                    -1, 'baseline', now(), 0, true),
-  (10, '10', 'Add Conversation Tags',              'SQL', 'V10__Add_Conversation_Tags.sql',             -1, 'baseline', now(), 0, true),
-  (11, '11', 'Add Workout Plan Tags',              'SQL', 'V11__Add_Workout_Plan_Tags.sql',             -1, 'baseline', now(), 0, true),
-  (12, '12', 'Import Quiz Data',                   'SQL', 'V12__Import_Quiz_Data.sql',                  -1, 'baseline', now(), 0, true),
-  (13, '13', 'Import Quiz Data Sequencing',        'SQL', 'V13__Import_Quiz_Data_Sequencing.sql',       -1, 'baseline', now(), 0, true),
-  (14, '14', 'Add Quiz Sessions',                  'SQL', 'V14__Add_Quiz_Sessions.sql',                 -1, 'baseline', now(), 0, true),
-  (15, '15', 'Update QuizResult Schema',           'SQL', 'V15__Update_QuizResult_Schema.sql',          -1, 'baseline', now(), 0, true),
-  (16, '16', 'Add Id To Junction Tables',          'SQL', 'V16__Add_id_to_junction_tables.sql',         -1, 'baseline', now(), 0, true),
-  (17, '17', 'Add Trial Usage Columns',            'SQL', 'V17__Add_trial_usage_columns.sql',           -1, 'baseline', now(), 0, true),
-  (18, '18', 'Add Trial Subscription Tier',        'SQL', 'V18__Add_trial_subscription_tier.sql',       -1, 'baseline', now(), 0, true),
-  (19, '19', 'Add Display Name Not Null',          'SQL', 'V19__Add_display_name_not_null.sql',         -1, 'baseline', now(), 0, true)
-ON CONFLICT DO NOTHING;
