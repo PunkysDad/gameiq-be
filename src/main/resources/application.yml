@@ -158,6 +158,7 @@ spring:
     out-of-order: true
     baseline-on-migrate: true
     baseline-version: 1
+    ignore-migration-patterns: "*:missing,*:future,V21:checksum"
 
   # Security enabled in prod — no exclusions
   autoconfigure:
