@@ -97,7 +97,17 @@ class UserService(
      * Find user by Firebase UID
      */
     fun findByFirebaseUid(firebaseUid: String): User? {
-        return userRepository.findByFirebaseUid(firebaseUid)
+        val user = userRepository.findByFirebaseUid(firebaseUid) ?: return null
+        if (user.deletedAt != null) {
+            // Reactivate soft-deleted account
+            val reactivated = user.copy(
+                deletedAt = null,
+                isActive = true,
+                updatedAt = LocalDateTime.now()
+            )
+            return userRepository.save(reactivated)
+        }
+        return user
     }
     
     /**
@@ -133,10 +143,14 @@ class UserService(
     }
 
     fun deleteUser(userId: Long) {
-        if (!userRepository.existsById(userId)) {
-            throw IllegalArgumentException("User not found: $userId")
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("User not found: $userId")
         }
-        userRepository.deleteById(userId)
+        val softDeleted = user.copy(
+            deletedAt = LocalDateTime.now(),
+            updatedAt = LocalDateTime.now()
+        )
+        userRepository.save(softDeleted)
     }
     
     // ===== NEW QUIZ SYSTEM INTEGRATION =====

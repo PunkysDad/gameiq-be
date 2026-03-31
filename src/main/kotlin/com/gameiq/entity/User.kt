@@ -56,7 +56,10 @@ data class User(
     val lastActiveAt: LocalDateTime? = null,
 
     @Column(name = "is_active", nullable = false)
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+
+    @Column(name = "deleted_at")
+    val deletedAt: LocalDateTime? = null
 )
 
 enum class SubscriptionTier {

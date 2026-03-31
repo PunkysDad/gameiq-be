@@ -325,7 +325,7 @@ class UserController(
             userService.deleteUser(userId)
             ResponseEntity.ok(mapOf(
                 "success" to true,
-                "message" to "User deleted successfully"
+                "message" to "Account scheduled for deletion"
             ))
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(mapOf(
