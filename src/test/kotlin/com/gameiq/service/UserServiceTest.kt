@@ -116,5 +116,50 @@ class UserServiceTest {
             assertNull(result)
             verify(userRepository, never()).save(anyOrNull())
         }
+
+        @Test
+        fun `createUser reactivates soft-deleted account instead of creating duplicate`() {
+            val deletedUser = makeUser(tier = SubscriptionTier.TRIAL, firebaseUid = "test-firebase-uid").copy(
+                deletedAt = LocalDateTime.now().minusDays(3),
+                isActive = false
+            )
+            whenever(userRepository.findByFirebaseUid("test-firebase-uid")).thenReturn(deletedUser)
+            val captor = argumentCaptor<User>()
+            whenever(userRepository.save(captor.capture())).thenAnswer { captor.lastValue }
+
+            val result = service.createUser(
+                email = "test@example.com",
+                firebaseUid = "test-firebase-uid",
+                displayName = "Test User",
+                primarySport = Sport.BASKETBALL,
+                primaryPosition = Position.PG
+            )
+
+            assertNull(result.deletedAt)
+            assertTrue(result.isActive)
+            assertEquals(Sport.BASKETBALL, result.primarySport)
+            assertEquals(Position.PG, result.primaryPosition)
+            // Should update existing record, not save a new one with id=0
+            assertNotEquals(0L, captor.firstValue.id)
+        }
+
+        @Test
+        fun `createUser proceeds normally when no existing user found`() {
+            whenever(userRepository.findByFirebaseUid("brand-new-uid")).thenReturn(null)
+            val captor = argumentCaptor<User>()
+            whenever(userRepository.save(captor.capture())).thenAnswer { captor.lastValue }
+
+            val result = service.createUser(
+                email = "new@example.com",
+                firebaseUid = "brand-new-uid",
+                displayName = "New User",
+                primarySport = Sport.FOOTBALL,
+                primaryPosition = Position.QB
+            )
+
+            assertNull(result.deletedAt)
+            assertTrue(result.isActive)
+            verify(userRepository).save(anyOrNull())
+        }
     }
 }

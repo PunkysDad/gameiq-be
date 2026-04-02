@@ -34,9 +34,20 @@ class UserService(
         firstName: String? = null,
         lastName: String? = null
     ): User {
-        // Check if user already exists
+        // Check if user already exists (including soft-deleted)
         val existingUser = userRepository.findByFirebaseUid(firebaseUid)
         if (existingUser != null) {
+            if (existingUser.deletedAt != null) {
+                // Reactivate soft-deleted account with new registration details
+                val reactivated = existingUser.copy(
+                    deletedAt = null,
+                    isActive = true,
+                    primarySport = primarySport,
+                    primaryPosition = primaryPosition,
+                    updatedAt = LocalDateTime.now()
+                )
+                return userRepository.save(reactivated)
+            }
             throw IllegalArgumentException("User already exists with Firebase UID: $firebaseUid")
         }
         
