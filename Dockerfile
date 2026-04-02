@@ -9,15 +9,11 @@ COPY gradle gradle
 COPY gradlew .
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
+COPY src src
 
 RUN chmod +x gradlew
 
-# Cache dependencies separately from source so rebuilds are faster
-RUN ./gradlew dependencies --no-daemon
-
-COPY src src
-
-RUN rm -rf /root/.gradle/caches && ./gradlew build --no-daemon -x test
+RUN ./gradlew build --no-daemon -x test --no-build-cache
 
 # ── Stage 2: Run ──────────────────────────────────────────────────────────────
 FROM amazoncorretto:17-alpine
