@@ -17,7 +17,7 @@ RUN ./gradlew dependencies --no-daemon
 
 COPY src src
 
-RUN ./gradlew build --no-daemon -x test --rerun-tasks
+RUN rm -rf /root/.gradle/caches && ./gradlew build --no-daemon -x test
 
 # ── Stage 2: Run ──────────────────────────────────────────────────────────────
 FROM amazoncorretto:17-alpine
