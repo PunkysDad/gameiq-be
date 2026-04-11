@@ -189,6 +189,13 @@ data class TagWorkoutRequest(
     val tagIds: List<Long>
 )
 
+data class YoutubeVideoResult(
+    val videoId: String,
+    val title: String,
+    val thumbnail: String,
+    val channelName: String
+)
+
 data class WorkoutSearchFilters(
     val tags: List<String>? = null,
     val sport: String? = null,

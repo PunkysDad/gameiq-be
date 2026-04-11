@@ -66,6 +66,9 @@ gameiq:
       - https://gameiq.app
       - https://www.gameiq.app
 
+youtube:
+  api-key: ${YOUTUBE_API_KEY:placeholder}
+
 management:
   endpoints:
     web:
@@ -168,6 +171,9 @@ claude:
   api:
     key: ${CLAUDE_API_KEY}
     url: https://api.anthropic.com/v1/messages
+
+youtube:
+  api-key: ${YOUTUBE_API_KEY}
 
 gameiq:
   cors:
