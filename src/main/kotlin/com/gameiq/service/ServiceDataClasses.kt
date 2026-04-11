@@ -182,7 +182,11 @@ data class ExerciseDTO(
     val duration: String? = null,
     val restPeriod: String? = null,
     val instructions: List<String>? = null,
-    val videoUrl: String? = null
+    val videoUrl: String? = null,
+    val positionBenefit: String? = null,
+    val gameApplication: String? = null,
+    val injuryPrevention: String? = null,
+    val coachingCue: String? = null
 )
 
 data class TagWorkoutRequest(

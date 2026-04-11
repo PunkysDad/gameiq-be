@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestTemplate
+import org.springframework.web.util.UriComponentsBuilder
 import org.slf4j.LoggerFactory
 
 @Service
@@ -18,16 +19,28 @@ class YoutubeService(
 
     private val logger = LoggerFactory.getLogger(YoutubeService::class.java)
 
-    fun searchExerciseVideos(query: String): List<YoutubeVideoResult> {
-        val url = "https://www.googleapis.com/youtube/v3/search" +
-            "?part=snippet" +
-            "&q=${java.net.URLEncoder.encode("$query exercise tutorial", Charsets.UTF_8)}" +
-            "&type=video" +
-            "&maxResults=5" +
-            "&order=viewCount" +
-            "&key=$youtubeApiKey"
+    fun cleanSearchQuery(query: String): String {
+        return query
+            .replace(Regex("""^\d+\.\s*"""), "")
+            .replace(Regex("""\s*\(\d+\s+seconds?\)"""), "")
+            .trim()
+    }
 
-        val response = restTemplate.getForObject(url, String::class.java)
+    fun searchExerciseVideos(query: String): List<YoutubeVideoResult> {
+        val cleanedQuery = cleanSearchQuery(query)
+
+        val uri = UriComponentsBuilder
+            .fromHttpUrl("https://www.googleapis.com/youtube/v3/search")
+            .queryParam("part", "snippet")
+            .queryParam("q", "$cleanedQuery exercise tutorial")
+            .queryParam("type", "video")
+            .queryParam("maxResults", 5)
+            .queryParam("order", "viewCount")
+            .queryParam("key", youtubeApiKey)
+            .build()
+            .toUri()
+
+        val response = restTemplate.getForObject(uri, String::class.java)
             ?: return emptyList()
 
         val root = objectMapper.readTree(response)

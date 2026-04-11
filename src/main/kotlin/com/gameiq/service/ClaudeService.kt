@@ -163,21 +163,40 @@ class ClaudeService(
 
         val userMessage = """
             Generate a comprehensive $sessionDuration-minute workout for a $sport $position player.
-            
+
             Experience Level: $experienceLevel
             Training Phase: $trainingPhase
             Available Equipment: $availableEquipment
             Focus Areas: $focusAreas
             ${specialRequirements?.let { "Special Requirements: $it" } ?: ""}
-            
-            Please provide a detailed, well-formatted workout plan with:
-            - Clear exercise names and descriptions
-            - Sets, reps, and rest periods for each exercise
-            - Coaching cues and technique tips
-            - How each exercise benefits the $position position
-            - Injury prevention considerations
-            
-            Format the workout clearly with sections and proper structure.
+
+            Respond with ONLY valid JSON, no markdown, no code blocks, no additional text.
+            Use this exact schema:
+            {
+                "workoutTitle": "Position-specific title",
+                "positionFocus": "2-3 sentence explanation of how this workout targets $position demands",
+                "exercises": [
+                    {
+                        "name": "Exercise name",
+                        "sets": 3,
+                        "reps": "8-12",
+                        "restSeconds": 60,
+                        "description": "Clear, technical instruction on proper form",
+                        "positionBenefit": "How this translates to better $position performance",
+                        "gameApplication": "Real game situation where this strength/movement is crucial",
+                        "injuryPrevention": "How this prevents common position-specific injuries",
+                        "coachingCue": "One key mental cue for execution"
+                    }
+                ],
+                "equipmentNeeded": "List of required equipment",
+                "focusAreas": "Primary muscle groups and movement patterns",
+                "estimatedDuration": $sessionDuration,
+                "warmup": "Position-specific warm-up routine",
+                "cooldown": "Recovery routine",
+                "intelligenceNote": "2-3 sentences connecting training to tactical advantages",
+                "progressionTip": "How to advance the workout",
+                "nextLevelUnlock": "Next position-specific skill to tackle"
+            }
         """.trimIndent()
 
         val conversation = chatWithClaude(
@@ -191,7 +210,7 @@ class ClaudeService(
             maxTokens = 4000
         )
 
-        val workoutTitle = extractSimpleWorkoutTitle(conversation.claudeResponse)
+        val workoutTitle = extractWorkoutTitle(conversation.claudeResponse)
             ?: "$position $trainingPhase Workout"
 
         val workoutPlan = WorkoutPlan(

@@ -131,14 +131,50 @@ class WorkoutController @Autowired constructor(
         return ResponseEntity.ok(workout)
     }
 
+    @PutMapping("/{workoutId}/exercises/video")
+    fun updateExerciseVideo(
+        @PathVariable workoutId: Long,
+        @RequestBody request: UpdateExerciseVideoRequest
+    ): ResponseEntity<Any> {
+        return try {
+            val updatedWorkout = workoutService.updateExerciseVideo(
+                workoutId = workoutId,
+                exerciseName = request.exerciseName,
+                videoId = request.videoId,
+                videoUrl = request.videoUrl,
+                videoTitle = request.videoTitle
+            )
+
+            if (updatedWorkout != null) {
+                ResponseEntity.ok(mapOf("message" to "Exercise video updated successfully"))
+            } else {
+                ResponseEntity.notFound().build()
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to update exercise video for workoutId=$workoutId: ${e.message}", e)
+            ResponseEntity.badRequest().build()
+        }
+    }
+
     private fun parseExercisesFromGeneratedContent(generatedContent: String?): List<ExerciseDTO> {
-        if (generatedContent.isNullOrEmpty()) return emptyList()
+        if (generatedContent.isNullOrEmpty()) {
+            logger.warn("parseExercises: generatedContent is null or empty")
+            return emptyList()
+        }
+
+        logger.info("parseExercises: raw content (first 500 chars): ${generatedContent.take(500)}")
 
         return try {
             val workoutData = objectMapper.readTree(generatedContent)
+            val hasExercises = workoutData.has("exercises")
+            val hasMainExercises = workoutData.has("mainExercises")
+            logger.info("parseExercises: JSON parsed successfully. has 'exercises': $hasExercises, has 'mainExercises': $hasMainExercises")
+            logger.info("parseExercises: top-level keys: ${workoutData.fieldNames().asSequence().toList()}")
+
             val exercisesNode = workoutData.get("exercises") ?: workoutData.get("mainExercises")
 
             if (exercisesNode?.isArray == true) {
+                logger.info("parseExercises: found ${exercisesNode.size()} exercises in JSON array")
                 exercisesNode.map { exerciseNode ->
                     ExerciseDTO(
                         name = exerciseNode.get("name")?.asText() ?: "Exercise",
@@ -148,27 +184,45 @@ class WorkoutController @Autowired constructor(
                         duration = exerciseNode.get("duration")?.asText(),
                         restPeriod = exerciseNode.get("restSeconds")?.asInt()?.let { "${it} seconds" },
                         instructions = exerciseNode.get("instructions")?.map { it.asText() },
-                        videoUrl = exerciseNode.get("videoUrl")?.asText()
+                        videoUrl = exerciseNode.get("videoUrl")?.asText(),
+                        positionBenefit = exerciseNode.get("positionBenefit")?.asText(),
+                        gameApplication = exerciseNode.get("gameApplication")?.asText(),
+                        injuryPrevention = exerciseNode.get("injuryPrevention")?.asText(),
+                        coachingCue = exerciseNode.get("coachingCue")?.asText()
                     )
                 }
             } else {
+                logger.warn("parseExercises: exercisesNode is null or not an array (isArray=${exercisesNode?.isArray}, nodeType=${exercisesNode?.nodeType}), falling back to markdown parser")
                 parseExercisesFromMarkdown(generatedContent)
             }
         } catch (e: Exception) {
+            logger.warn("parseExercises: JSON parsing failed with ${e.javaClass.simpleName}: ${e.message}, falling back to markdown parser")
             parseExercisesFromMarkdown(generatedContent)
         }
     }
 
+    data class UpdateExerciseVideoRequest(
+        val exerciseName: String,
+        val videoId: String,
+        val videoUrl: String,
+        val videoTitle: String? = null
+    )
+
     private fun parseExercisesFromMarkdown(content: String): List<ExerciseDTO> {
+        logger.info("parseExercisesFromMarkdown: attempting markdown parse on content (first 500 chars): ${content.take(500)}")
         val exercises = mutableListOf<ExerciseDTO>()
 
         try {
             val exercisePattern = Regex("""\*\*(\d+\.\s+.*?)\*\*""")
             val matches = exercisePattern.findAll(content)
+            val matchCount = matches.count()
+            logger.info("parseExercisesFromMarkdown: regex '\\*\\*(\\d+\\.\\s+.*?)\\*\\*' found $matchCount matches")
 
-            matches.forEach { match ->
+            // Re-run findAll since .count() consumed the sequence
+            exercisePattern.findAll(content).forEach { match ->
                 val exerciseText = match.groupValues[1]
                 val name = exerciseText.split("**").firstOrNull()?.trim() ?: "Exercise"
+                logger.info("parseExercisesFromMarkdown: matched exercise: '$name'")
 
                 val setsPattern = Regex("""Sets:\s*(\d+)""", RegexOption.IGNORE_CASE)
                 val repsPattern = Regex("""Reps:\s*([^|]+)""", RegexOption.IGNORE_CASE)
@@ -189,6 +243,7 @@ class WorkoutController @Autowired constructor(
                 ))
             }
         } catch (e: Exception) {
+            logger.error("parseExercisesFromMarkdown: exception during markdown parsing: ${e.javaClass.simpleName}: ${e.message}", e)
             exercises.add(ExerciseDTO(
                 name = "AI-Generated Workout",
                 description = "Complete workout available in enhanced content",
@@ -198,6 +253,7 @@ class WorkoutController @Autowired constructor(
             ))
         }
 
+        logger.info("parseExercisesFromMarkdown: returning ${exercises.size} exercises")
         return exercises
     }
 }
