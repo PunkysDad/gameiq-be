@@ -35,8 +35,7 @@ class TagService @Autowired constructor(
     fun getUserTags(userId: Long): List<Tag> {
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found: $userId") }
-        if (user.subscriptionTier != SubscriptionTier.PREMIUM &&
-            user.subscriptionTier != SubscriptionTier.TRIAL) return emptyList()
+        if (user.subscriptionTier == SubscriptionTier.NONE) return emptyList()
         return tagRepository.findByUserIdOrderByNameAsc(userId)
     }
 
@@ -167,6 +166,15 @@ class TagService @Autowired constructor(
     // -------------------------------------------------------------------------
 
     fun addTagToWorkoutPlan(userId: Long, workoutPlanId: Long, tagId: Long) {
+        val user = userRepository.findById(userId)
+            .orElseThrow { IllegalArgumentException("User not found: $userId") }
+        if (user.subscriptionTier != SubscriptionTier.PREMIUM &&
+            user.subscriptionTier != SubscriptionTier.TRIAL) {
+            throw IllegalStateException(
+                "Tagging is a Premium feature. Upgrade to Premium (\$19.99/mo) to organize your content with tags."
+            )
+        }
+
         val tag = tagRepository.findById(tagId)
             .orElseThrow { IllegalArgumentException("Tag not found: $tagId") }
         require(tag.user.id == userId) { "Tag does not belong to user $userId" }
@@ -193,6 +201,15 @@ class TagService @Autowired constructor(
     // -------------------------------------------------------------------------
 
     fun addTagToConversation(userId: Long, conversationId: Long, tagId: Long) {
+        val user = userRepository.findById(userId)
+            .orElseThrow { IllegalArgumentException("User not found: $userId") }
+        if (user.subscriptionTier != SubscriptionTier.PREMIUM &&
+            user.subscriptionTier != SubscriptionTier.TRIAL) {
+            throw IllegalStateException(
+                "Tagging is a Premium feature. Upgrade to Premium (\$19.99/mo) to organize your content with tags."
+            )
+        }
+
         val tag = tagRepository.findById(tagId)
             .orElseThrow { IllegalArgumentException("Tag not found: $tagId") }
         require(tag.user.id == userId) { "Tag does not belong to user $userId" }
