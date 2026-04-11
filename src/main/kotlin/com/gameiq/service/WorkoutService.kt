@@ -3,6 +3,9 @@ package com.gameiq.service
 import com.gameiq.entity.*
 import com.gameiq.repository.WorkoutPlanRepository
 import com.gameiq.repository.UserRepository
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
@@ -14,6 +17,8 @@ class WorkoutService(
     private val userRepository: UserRepository
     // Remove claudeService dependency - no longer needed
 ) {
+
+    private val objectMapper: ObjectMapper = jacksonObjectMapper()
     
     // Get all workout plans for user
     fun getUserWorkoutPlans(userId: Long): List<WorkoutPlan> {
@@ -84,9 +89,43 @@ class WorkoutService(
             .filter { it.sport == sport }
     }
     
-    // Get workout plans by position for user  
+    // Get workout plans by position for user
     fun getUserWorkoutsByPosition(userId: Long, position: Position): List<WorkoutPlan> {
         return workoutPlanRepository.findByUserId(userId)
             .filter { it.position == position }
+    }
+
+    fun updateExerciseVideo(workoutId: Long, exerciseName: String, videoId: String, videoUrl: String, videoTitle: String? = null): WorkoutPlan? {
+        val workout = workoutPlanRepository.findById(workoutId).orElse(null) ?: return null
+
+        val generatedContent = workout.generatedContent ?: return null
+
+        val workoutData = objectMapper.readTree(generatedContent)
+        val exercisesNode = workoutData.get("exercises") ?: workoutData.get("mainExercises") ?: return null
+
+        if (!exercisesNode.isArray) return null
+
+        var found = false
+        for (exerciseNode in exercisesNode) {
+            val name = exerciseNode.get("name")?.asText() ?: continue
+            if (name.equals(exerciseName, ignoreCase = true)) {
+                (exerciseNode as ObjectNode).put("videoId", videoId)
+                (exerciseNode as ObjectNode).put("videoUrl", videoUrl)
+                if (!videoTitle.isNullOrBlank()) {
+                    (exerciseNode as ObjectNode).put("videoTitle", videoTitle)
+                }
+                found = true
+                break
+            }
+        }
+
+        if (!found) return null
+
+        val updatedContent = objectMapper.writeValueAsString(workoutData)
+        val updatedWorkout = workout.copy(
+            generatedContent = updatedContent,
+            updatedAt = LocalDateTime.now()
+        )
+        return workoutPlanRepository.save(updatedWorkout)
     }
 }
