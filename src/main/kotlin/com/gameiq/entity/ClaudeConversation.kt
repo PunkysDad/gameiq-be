@@ -58,9 +58,12 @@ data class ClaudeConversation(
     
     @Column(name = "flagged_inappropriate", nullable = false)
     val flaggedInappropriate: Boolean = false,
-    
+
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now()
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "display_title")
+    val displayTitle: String? = null
 )
 
 enum class ConversationType {

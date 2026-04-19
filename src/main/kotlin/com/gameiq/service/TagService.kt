@@ -153,9 +153,9 @@ class TagService @Autowired constructor(
                 TaggedWorkoutResponse(
                     id = plan.id,
                     title = plan.workoutName
-                        ?: "${plan.position.name} ${plan.sport.name} workout",
+                        ?: "${plan.position?.name ?: ""} ${plan.sport.name} workout",
                     sport = plan.sport.name,
-                    position = plan.position.name,
+                    position = plan.position?.name ?: "",
                     createdAt = plan.createdAt.toString()
                 )
             }

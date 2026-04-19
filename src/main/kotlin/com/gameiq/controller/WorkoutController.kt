@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.slf4j.LoggerFactory
 
+data class WorkoutTitleUpdateRequest(val title: String)
+
 @RestController
 @RequestMapping("/workouts")
 class WorkoutController @Autowired constructor(
@@ -42,22 +44,36 @@ class WorkoutController @Autowired constructor(
                 availableEquipment = request.availableEquipment.joinToString(", "),
                 sessionDuration = request.sessionDuration,
                 focusAreas = request.focusAreas.joinToString(", "),
-                specialRequirements = request.specialRequirements
+                specialRequirements = request.specialRequirements,
+                additionalEquipment = request.additionalEquipment,
+                specialFocusAreas = request.specialFocusAreas,
+                fitnessGoals = request.fitnessGoals
             )
 
             val exercises = parseExercisesFromGeneratedContent(workoutPlan.generatedContent)
 
             val workoutPlanDTO = WorkoutPlanDTO(
                 id = workoutPlan.id.toString(),
-                title = workoutPlan.workoutName ?: "${request.position} ${request.trainingPhase} Workout",
+                title = workoutPlan.workoutName
+                    ?: "${request.position ?: ""} ${request.trainingPhase} Workout".trim(),
                 description = workoutPlan.positionFocus ?: "",
                 estimatedDuration = workoutPlan.durationMinutes ?: request.sessionDuration,
                 exercises = exercises,
-                focusAreas = request.focusAreas,
+                focusAreas = request.focusAreas.ifEmpty {
+                    try {
+                        val tree = objectMapper.readTree(workoutPlan.generatedContent)
+                        val focusStr = tree.get("focusAreas")?.asText() ?: ""
+                        if (focusStr.isNotBlank()) focusStr.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                        else listOf("General Training")
+                    } catch (e: Exception) {
+                        listOf("General Training")
+                    }
+                },
                 createdAt = workoutPlan.createdAt.toString(),
                 sport = request.sport,
-                position = request.position,
-                generatedContent = workoutPlan.generatedContent
+                position = request.position ?: "",
+                generatedContent = workoutPlan.generatedContent,
+                displayTitle = workoutPlan.displayTitle
             )
 
             ResponseEntity.ok(workoutPlanDTO)
@@ -113,8 +129,9 @@ class WorkoutController @Autowired constructor(
                     focusAreas = listOf(workoutPlan.positionFocus ?: "General Training"),
                     createdAt = workoutPlan.createdAt.toString(),
                     sport = workoutPlan.sport.name,
-                    position = workoutPlan.position.name,
-                    generatedContent = workoutPlan.generatedContent
+                    position = workoutPlan.position?.name ?: "",
+                    generatedContent = workoutPlan.generatedContent,
+                    displayTitle = workoutPlan.displayTitle
                 )
             }
 
@@ -129,6 +146,32 @@ class WorkoutController @Autowired constructor(
     fun getWorkoutById(@PathVariable workoutId: Long): ResponseEntity<WorkoutPlan?> {
         val workout = workoutService.getWorkoutPlanById(workoutId)
         return ResponseEntity.ok(workout)
+    }
+
+    @PutMapping("/{workoutId}/title")
+    fun updateWorkoutTitle(
+        @PathVariable workoutId: Long,
+        @RequestBody request: WorkoutTitleUpdateRequest
+    ): ResponseEntity<WorkoutPlanDTO> {
+        val updated = workoutService.updateDisplayTitle(workoutId, request.title)
+            ?: return ResponseEntity.notFound().build()
+
+        val exercises = parseExercisesFromGeneratedContent(updated.generatedContent)
+
+        val dto = WorkoutPlanDTO(
+            id = updated.id.toString(),
+            title = updated.workoutName ?: "Workout Plan",
+            description = updated.positionFocus ?: "",
+            estimatedDuration = updated.durationMinutes ?: 45,
+            exercises = exercises,
+            focusAreas = listOf(updated.positionFocus ?: "General Training"),
+            createdAt = updated.createdAt.toString(),
+            sport = updated.sport.name,
+            position = updated.position?.name ?: "",
+            generatedContent = updated.generatedContent,
+            displayTitle = updated.displayTitle
+        )
+        return ResponseEntity.ok(dto)
     }
 
     @PutMapping("/{workoutId}/exercises/video")

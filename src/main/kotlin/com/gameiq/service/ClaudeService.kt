@@ -110,14 +110,18 @@ class ClaudeService(
     fun generateWorkoutPlan(
         userId: Long,
         sport: String,
-        position: String,
+        position: String? = null,
         experienceLevel: String,
         trainingPhase: String,
         availableEquipment: String,
         sessionDuration: Int,
         focusAreas: String,
-        specialRequirements: String? = null
+        specialRequirements: String? = null,
+        additionalEquipment: String? = null,
+        specialFocusAreas: String? = null,
+        fitnessGoals: List<String>? = null
     ): WorkoutPlan {
+        val positionInput = position ?: ""
         val user = userRepository.findById(userId).orElseThrow {
             IllegalArgumentException("User not found")
         }
@@ -125,56 +129,102 @@ class ClaudeService(
         // Check rate limit before hitting the Claude API
         checkRateLimit(user, isWorkout = true)
 
-        val sportEnum = Sport.valueOf(sport.uppercase())
-        val positionEnum = when (position.uppercase().replace(" ", "")) {
-            // Football — abbreviations and full names
-            "QB", "QUARTERBACK"          -> Position.QB
-            "RB", "RUNNINGBACK"          -> Position.RB
-            "WR", "WIDERECEIVER"         -> Position.WR
-            "OL", "OFFENSIVELINE"        -> Position.OL
-            "TE", "TIGHTEND"             -> Position.TE
-            "LB", "LINEBACKER"           -> Position.LB
-            "DB", "DEFENSIVEBACK"        -> Position.DB
-            "DL", "DEFENSIVELINE"        -> Position.DL
-            // Basketball
-            "PG", "POINTGUARD"           -> Position.PG
-            "SG", "SHOOTINGGUARD"        -> Position.SG
-            "SF", "SMALLFORWARD"         -> Position.SF
-            "PF", "POWERFORWARD"         -> Position.PF
-            "C", "CENTER"                -> Position.CENTER
-            // Baseball
-            "PITCHER"                    -> Position.PITCHER
-            "CATCHER"                    -> Position.CATCHER
-            "INFIELD"                    -> Position.INFIELD
-            "OUTFIELD"                   -> Position.OUTFIELD
-            // Soccer
-            "GOALKEEPER"                 -> Position.GOALKEEPER
-            "DEFENDER"                   -> Position.DEFENDER
-            "MIDFIELDER"                 -> Position.MIDFIELDER
-            "FORWARD"                    -> Position.FORWARD
-            // Hockey
-            "WINGER"                     -> Position.WINGER
-            "DEFENSEMAN"                 -> Position.DEFENSEMAN
-            "GOALIE"                     -> Position.GOALIE
-            else -> throw IllegalArgumentException("Unknown position: $position")
+        val isGeneralFitness = sport.uppercase() == "GENERAL_FITNESS"
+
+        val effectiveTrainingPhase = if (isGeneralFitness) "GENERAL" else trainingPhase
+
+        val sportEnum: Sport
+        val positionEnum: Position?
+
+        if (isGeneralFitness) {
+            sportEnum = Sport.GENERAL_FITNESS
+            positionEnum = null
+        } else {
+            sportEnum = Sport.valueOf(sport.uppercase())
+            positionEnum = when (positionInput.uppercase().replace(" ", "")) {
+                // Football — abbreviations and full names
+                "QB", "QUARTERBACK"          -> Position.QB
+                "RB", "RUNNINGBACK"          -> Position.RB
+                "WR", "WIDERECEIVER"         -> Position.WR
+                "OL", "OFFENSIVELINE"        -> Position.OL
+                "TE", "TIGHTEND"             -> Position.TE
+                "LB", "LINEBACKER"           -> Position.LB
+                "DB", "DEFENSIVEBACK"        -> Position.DB
+                "DL", "DEFENSIVELINE"        -> Position.DL
+                // Basketball
+                "PG", "POINTGUARD"           -> Position.PG
+                "SG", "SHOOTINGGUARD"        -> Position.SG
+                "SF", "SMALLFORWARD"         -> Position.SF
+                "PF", "POWERFORWARD"         -> Position.PF
+                "C", "CENTER"                -> Position.CENTER
+                // Baseball
+                "PITCHER"                    -> Position.PITCHER
+                "CATCHER"                    -> Position.CATCHER
+                "INFIELD"                    -> Position.INFIELD
+                "OUTFIELD"                   -> Position.OUTFIELD
+                // Soccer
+                "GOALKEEPER"                 -> Position.GOALKEEPER
+                "DEFENDER"                   -> Position.DEFENDER
+                "MIDFIELDER"                 -> Position.MIDFIELDER
+                "FORWARD"                    -> Position.FORWARD
+                // Hockey
+                "WINGER"                     -> Position.WINGER
+                "DEFENSEMAN"                 -> Position.DEFENSEMAN
+                "GOALIE"                     -> Position.GOALIE
+                else -> throw IllegalArgumentException("Unknown position: $positionInput")
+            }
         }
 
-        val systemPrompt = createWorkoutSystemPrompt(sportEnum, positionEnum, experienceLevel, trainingPhase)
+        val systemPrompt = createWorkoutSystemPrompt(sportEnum, positionEnum, experienceLevel, effectiveTrainingPhase)
 
-        val userMessage = """
-            Generate a comprehensive $sessionDuration-minute workout for a $sport $position player.
+        val additionalEquipmentSection = """
+
+            Additional Equipment Available: ${additionalEquipment ?: "None specified"}
+            Special Focus Areas: ${specialFocusAreas ?: "None specified"}
+
+            IMPORTANT - Input Filtering Rules:
+            - Additional Equipment: Only incorporate equipment items that are legitimate fitness/training tools. Ignore any input that is not a recognized piece of exercise equipment (e.g., household items used as joke inputs). If equipment is not recognized, simply omit it.
+            - Special Focus Areas: Only incorporate focus areas that represent legitimate fitness, health, or sports performance goals (e.g., "improved forearm strength", "increased vertical jump"). Ignore any goals that are not physiologically achievable through exercise (e.g., "grow 5 inches taller"). If a focus area is not a valid fitness goal, simply omit it.
+        """.trimIndent()
+
+        val userMessage = if (isGeneralFitness) {
+            val goalsText = fitnessGoals?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "General health and fitness"
+            val hasSpecialFocus = !specialFocusAreas.isNullOrBlank()
+            val goalsBlock = if (hasSpecialFocus) {
+                "Primary Training Focus (from coaching session): $specialFocusAreas\n            Supporting Fitness Goals: $goalsText"
+            } else {
+                "Fitness Goals: $goalsText"
+            }
+            val priorityDirective = if (hasSpecialFocus) {
+                """
+
+            CRITICAL PRIORITY INSTRUCTION: This workout is being generated directly from a coaching session recommendation. The Primary Training Focus above must be the dominant theme of this entire workout. Every exercise selection, intensity, rest period, and structure must serve that specific goal. Do not default to a generic balanced workout — build the entire session around the Primary Training Focus.
+                """.trimIndent()
+            } else {
+                ""
+            }
+            val positionFocusDescription = if (hasSpecialFocus) {
+                "2-3 sentence explanation of how this workout specifically implements the coaching recommendation: $specialFocusAreas"
+            } else {
+                "2-3 sentence explanation of how this workout targets the user's fitness goals: $goalsText"
+            }
+            """
+            Generate a comprehensive $sessionDuration-minute workout for a general fitness user.
 
             Experience Level: $experienceLevel
-            Training Phase: $trainingPhase
+            Approach: ongoing fitness development
             Available Equipment: $availableEquipment
             Focus Areas: $focusAreas
+            $goalsBlock
             ${specialRequirements?.let { "Special Requirements: $it" } ?: ""}
+            $additionalEquipmentSection
+            $priorityDirective
 
             Respond with ONLY valid JSON, no markdown, no code blocks, no additional text.
             Use this exact schema:
             {
-                "workoutTitle": "Position-specific title",
-                "positionFocus": "2-3 sentence explanation of how this workout targets $position demands",
+                "workoutTitle": "Goal-oriented workout title",
+                "positionFocus": "$positionFocusDescription",
                 "exercises": [
                     {
                         "name": "Exercise name",
@@ -182,11 +232,64 @@ class ClaudeService(
                         "reps": "8-12",
                         "restSeconds": 60,
                         "description": "Clear, technical instruction on proper form",
-                        "positionBenefit": "How this translates to better $position performance",
+                        "positionBenefit": "How this exercise helps achieve your fitness goals",
+                        "gameApplication": "Real-world situation where this fitness improvement matters",
+                        "injuryPrevention": "How this prevents common injuries",
+                        "coachingCue": "One key mental cue for execution"
+                    }
+
+                    // CRITICAL EXERCISE NAMING RULES:
+                    // - Every exercise "name" field must be a single, specific, searchable exercise (e.g., "Barbell Back Squat", "Dumbbell Romanian Deadlift", "Pull-Up")
+                    // - Never use circuit names, superset names, or grouped exercise names (e.g., NEVER use "Dynamic Warm-up Circuit", "Upper Body Superset", "Core Complex")
+                    // - Never combine multiple exercises into a single name
+                    // - Each exercise entry must represent exactly one movement that can be searched on YouTube and return a relevant instructional video
+                    // - Warm-up and cool-down movements that appear in the exercises array must also follow this rule — use specific movement names like "Leg Swing" or "Hip Circle" not "Dynamic Warm-up Routine"
+                ],
+                "equipmentNeeded": "List of required equipment",
+                "focusAreas": "Primary muscle groups and movement patterns",
+                "estimatedDuration": $sessionDuration,
+                "warmup": "Goal-appropriate warm-up routine",
+                "cooldown": "Recovery routine",
+                "intelligenceNote": "2-3 sentences connecting training to the user's fitness goals",
+                "progressionTip": "How to advance the workout",
+                "nextLevelUnlock": "Next fitness milestone to tackle"
+            }
+            """.trimIndent()
+        } else {
+            """
+            Generate a comprehensive $sessionDuration-minute workout for a $sport $positionInput player.
+
+            Experience Level: $experienceLevel
+            Training Phase: $effectiveTrainingPhase
+            Available Equipment: $availableEquipment
+            Focus Areas: $focusAreas
+            ${specialRequirements?.let { "Special Requirements: $it" } ?: ""}
+            $additionalEquipmentSection
+
+            Respond with ONLY valid JSON, no markdown, no code blocks, no additional text.
+            Use this exact schema:
+            {
+                "workoutTitle": "Position-specific title",
+                "positionFocus": "2-3 sentence explanation of how this workout targets $positionInput demands",
+                "exercises": [
+                    {
+                        "name": "Exercise name",
+                        "sets": 3,
+                        "reps": "8-12",
+                        "restSeconds": 60,
+                        "description": "Clear, technical instruction on proper form",
+                        "positionBenefit": "How this translates to better $positionInput performance",
                         "gameApplication": "Real game situation where this strength/movement is crucial",
                         "injuryPrevention": "How this prevents common position-specific injuries",
                         "coachingCue": "One key mental cue for execution"
                     }
+
+                    // CRITICAL EXERCISE NAMING RULES:
+                    // - Every exercise "name" field must be a single, specific, searchable exercise (e.g., "Barbell Back Squat", "Dumbbell Romanian Deadlift", "Pull-Up")
+                    // - Never use circuit names, superset names, or grouped exercise names (e.g., NEVER use "Dynamic Warm-up Circuit", "Upper Body Superset", "Core Complex")
+                    // - Never combine multiple exercises into a single name
+                    // - Each exercise entry must represent exactly one movement that can be searched on YouTube and return a relevant instructional video
+                    // - Warm-up and cool-down movements that appear in the exercises array must also follow this rule — use specific movement names like "Leg Swing" or "Hip Circle" not "Dynamic Warm-up Routine"
                 ],
                 "equipmentNeeded": "List of required equipment",
                 "focusAreas": "Primary muscle groups and movement patterns",
@@ -197,7 +300,8 @@ class ClaudeService(
                 "progressionTip": "How to advance the workout",
                 "nextLevelUnlock": "Next position-specific skill to tackle"
             }
-        """.trimIndent()
+            """.trimIndent()
+        }
 
         val conversation = chatWithClaude(
             userId = userId,
@@ -211,14 +315,21 @@ class ClaudeService(
         )
 
         val workoutTitle = extractWorkoutTitle(conversation.claudeResponse)
-            ?: "$position $trainingPhase Workout"
+            ?: if (isGeneralFitness) "General Fitness Workout"
+               else "$positionInput $effectiveTrainingPhase Workout"
+
+        val positionFocusText = if (isGeneralFitness) {
+            "General fitness training"
+        } else {
+            "Position-specific training for $positionInput in $sport"
+        }
 
         val workoutPlan = WorkoutPlan(
             user = user,
             sport = sportEnum,
             position = positionEnum,
             workoutName = workoutTitle,
-            positionFocus = "Position-specific training for $position in $sport",
+            positionFocus = positionFocusText,
             difficultyLevel = experienceLevel.uppercase(),
             durationMinutes = sessionDuration,
             equipmentNeeded = availableEquipment,
@@ -260,34 +371,38 @@ class ClaudeService(
 
     private fun createWorkoutSystemPrompt(
         sport: Sport,
-        position: Position,
+        position: Position?,
         experienceLevel: String,
         trainingPhase: String
     ): String {
+        if (sport == Sport.GENERAL_FITNESS) {
+            return "You are an expert personal trainer and fitness coach. Your expertise includes goal-oriented training program design for all fitness levels, evidence-based exercise selection for fat loss, muscle building, endurance, and mobility, injury prevention and safe progression for general fitness users, and adapting workouts to available equipment and individual limitations. Create workouts that directly serve the user's stated fitness goals. Every exercise should have a clear connection to their goals and overall health. Always respond with valid JSON containing detailed exercise information including specific coaching cues for proper execution, how each exercise benefits the user's fitness goals, and safety and injury prevention notes."
+        }
+
         return """
             You are an elite $sport coach specializing in $position training. Your expertise includes:
-            
+
             - Position-specific movement patterns and physical demands for $position
-            - Injury prevention strategies for common $position injuries  
+            - Injury prevention strategies for common $position injuries
             - Performance enhancement that directly translates to $sport competition
             - Training periodization for $trainingPhase phase
             - Exercise selection based on $experienceLevel level athletes
-            
+
             Create highly specific workouts that directly improve $position performance on the field.
             Every exercise should have a clear connection to game situations and position requirements.
-            
+
             Focus Areas:
             - Functional movement patterns specific to $position
             - Strength and power development for position demands
             - Injury prevention for vulnerable areas
             - Game-specific conditioning and endurance
-            
+
             Always respond with valid JSON containing detailed exercise information including:
             - Specific coaching cues for proper execution
             - How each exercise benefits position performance
             - Game application examples
             - Safety and injury prevention notes
-            
+
             Make each workout challenging but appropriate for $experienceLevel level.
         """.trimIndent()
     }
@@ -353,10 +468,10 @@ class ClaudeService(
                 val monthStart = LocalDateTime.now()
                     .withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0)
                 val monthlyCostCents = claudeConversationRepository.getCostByUserSince(user, monthStart) ?: 0
-                println("DEBUG: BASIC monthly cost: $monthlyCostCents cents")
-                if (monthlyCostCents >= 400) {
+                println("DEBUG: BASIC monthly cost: $monthlyCostCents (units of 1/10000 dollar)")
+                if (monthlyCostCents >= 40000) {
                     throw IllegalStateException(
-                        "Monthly AI budget reached (\$${String.format("%.2f", monthlyCostCents / 100.0)} of \$4.00). " +
+                        "Monthly AI budget reached (\$${String.format("%.2f", monthlyCostCents / 10000.0)} of \$4.00). " +
                         "Upgrade to Premium for double the monthly allowance."
                     )
                 }
@@ -366,10 +481,10 @@ class ClaudeService(
                 val monthStart = LocalDateTime.now()
                     .withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0)
                 val monthlyCostCents = claudeConversationRepository.getCostByUserSince(user, monthStart) ?: 0
-                println("DEBUG: PREMIUM monthly cost: $monthlyCostCents cents")
-                if (monthlyCostCents >= 800) {
+                println("DEBUG: PREMIUM monthly cost: $monthlyCostCents (units of 1/10000 dollar)")
+                if (monthlyCostCents >= 80000) {
                     throw IllegalStateException(
-                        "Monthly AI budget reached (\$${String.format("%.2f", monthlyCostCents / 100.0)} of \$8.00). " +
+                        "Monthly AI budget reached (\$${String.format("%.2f", monthlyCostCents / 10000.0)} of \$8.00). " +
                         "Contact support if you need a higher limit."
                     )
                 }
@@ -395,10 +510,27 @@ class ClaudeService(
         position: Position?,
         conversationType: ConversationType
     ): String {
+        if (sport == Sport.GENERAL_FITNESS) {
+            return """
+                You are an expert personal trainer and fitness coach helping a general fitness user achieve their health and fitness goals. Provide evidence-based, practical advice on exercise, training, and fitness. Stay focused on fitness, health, and wellness topics. If asked about non-fitness topics, politely redirect to health and fitness.
+
+                CRITICAL BEHAVIORAL RULES:
+                1. When you need more information before giving advice, ask ONLY yes/no questions. Format each question on its own line starting with exactly [YES/NO] like this:
+                [YES/NO] Do you currently have gym access?
+                [YES/NO] Are you comfortable with high-intensity training?
+                Ask a maximum of 5-6 yes/no questions per response, then STOP. Do not provide any plan, schedule, or recommendations in the same response as your questions. Wait for the user's answers before proceeding.
+                2. Never ask open-ended questions. Every question must be answerable with yes or no.
+                3. When you determine that a structured workout session would benefit the user based on the conversation, end your response with exactly this phrase on its own line: 'Would you like me to create a workout plan to work towards these goals?'
+                4. When proposing a workout plan, include this note: 'Note: creating a workout plan will end this chat session.'
+                5. Never generate a full weekly schedule or multi-day program in the chat. Keep responses focused on advice, education, and single actionable recommendations.
+                6. Keep responses concise and conversational — 150 to 300 words maximum for non-question responses unless the user explicitly asks for more detail.
+            """.trimIndent()
+        }
+
         val basePrompt = """
-        You are an expert sports coach and trainer specializing in position-specific athletic development. 
+        You are an expert sports coach and trainer specializing in position-specific athletic development.
         Your responses should be practical, actionable, and focused on helping athletes improve their performance.
-        
+
         IMPORTANT GUIDELINES:
         - Stay focused on sports, training, and athletic development topics only
         - Provide position-specific advice when possible
@@ -746,12 +878,12 @@ class ClaudeService(
         val inputCostDollars = inputTokens * 0.000003
         val outputCostDollars = outputTokens * 0.000015
         val totalCostDollars = inputCostDollars + outputCostDollars
-        val totalCostCents = kotlin.math.round(totalCostDollars * 100).toInt()
+        val totalCostCents = kotlin.math.round(totalCostDollars * 10000).toInt()
 
         println("DEBUG: API Cost Calculation")
         println("  Input tokens: $inputTokens × \$0.000003 = \$${String.format("%.6f", inputCostDollars)}")
         println("  Output tokens: $outputTokens × \$0.000015 = \$${String.format("%.6f", outputCostDollars)}")
-        println("  Total cost: \$${String.format("%.6f", totalCostDollars)} = ${totalCostCents} cents")
+        println("  Total cost: \$${String.format("%.6f", totalCostDollars)} = ${totalCostCents} (units of 1/10000 dollar)")
 
         return totalCostCents
     }

@@ -60,6 +60,13 @@ class WorkoutService(
         }
     }
     
+    // Update the display title on a workout plan
+    fun updateDisplayTitle(workoutId: Long, title: String): WorkoutPlan? {
+        val workout = workoutPlanRepository.findById(workoutId).orElse(null) ?: return null
+        val updated = workout.copy(displayTitle = title, updatedAt = LocalDateTime.now())
+        return workoutPlanRepository.save(updated)
+    }
+
     // Delete workout entirely
     fun deleteWorkout(workoutId: Long, userId: Long) {
         val workout = workoutPlanRepository.findById(workoutId).orElse(null)

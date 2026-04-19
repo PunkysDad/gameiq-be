@@ -59,15 +59,21 @@ data class User(
     val isActive: Boolean = true,
 
     @Column(name = "deleted_at")
-    val deletedAt: LocalDateTime? = null
-)
+    val deletedAt: LocalDateTime? = null,
+
+    @Column(name = "fitness_goals", columnDefinition = "TEXT")
+    val fitnessGoals: String = ""
+) {
+    fun getFitnessGoalsList(): List<String> =
+        if (fitnessGoals.isBlank()) emptyList() else fitnessGoals.split(",").map { it.trim() }
+}
 
 enum class SubscriptionTier {
     TRIAL, NONE, BASIC, PREMIUM
 }
 
 enum class Sport {
-    FOOTBALL, BASKETBALL, BASEBALL, SOCCER, HOCKEY
+    FOOTBALL, BASKETBALL, BASEBALL, SOCCER, HOCKEY, GENERAL_FITNESS
 }
 
 enum class Position {

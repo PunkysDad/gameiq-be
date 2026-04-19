@@ -143,15 +143,18 @@ data class QuizAttemptSession(
 
 // Workout system request/response DTOs
 data class WorkoutGenerationRequest(
-    val userId: Long,  
+    val userId: Long,
     val sport: String,
-    val position: String,
+    val position: String? = null,
     val experienceLevel: String, // "beginner", "intermediate", "advanced"
     val trainingPhase: String,   // "off-season", "pre-season", "in-season", "post-season"
     val availableEquipment: List<String>,
     val sessionDuration: Int,    // minutes
     val focusAreas: List<String>,
-    val specialRequirements: String? = null
+    val specialRequirements: String? = null,
+    val additionalEquipment: String? = null,
+    val specialFocusAreas: String? = null,
+    val fitnessGoals: List<String>? = null
 )
 
 data class WorkoutGenerationResponse(
@@ -171,7 +174,8 @@ data class WorkoutPlanDTO(
     val createdAt: String,
     val sport: String? = null,
     val position: String? = null,
-    val generatedContent: String? = null
+    val generatedContent: String? = null,
+    val displayTitle: String? = null
 )
 
 data class ExerciseDTO(
