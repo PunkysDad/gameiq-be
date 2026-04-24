@@ -162,4 +162,62 @@ class UserServiceTest {
             verify(userRepository).save(anyOrNull())
         }
     }
+
+    // =========================================================================
+    // GENERAL_FITNESS — null position, fitnessGoals persistence
+    // =========================================================================
+
+    @Nested
+    inner class GeneralFitnessUserTests {
+
+        @Test
+        fun `createUser with GENERAL_FITNESS sport stores null primaryPosition`() {
+            whenever(userRepository.findByFirebaseUid("gf-uid")).thenReturn(null)
+            val captor = argumentCaptor<User>()
+            whenever(userRepository.save(captor.capture())).thenAnswer { captor.lastValue }
+
+            service.createUser(
+                email = "fitness@example.com",
+                firebaseUid = "gf-uid",
+                displayName = "Fitness User",
+                primarySport = Sport.GENERAL_FITNESS,
+                primaryPosition = null
+            )
+
+            assertEquals(Sport.GENERAL_FITNESS, captor.firstValue.primarySport)
+            assertNull(captor.firstValue.primaryPosition)
+        }
+
+        @Test
+        fun `updateUserProfile persists fitnessGoals string`() {
+            val existing = makeUser(tier = SubscriptionTier.BASIC)
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(existing))
+            val captor = argumentCaptor<User>()
+            whenever(userRepository.save(captor.capture())).thenAnswer { captor.lastValue }
+
+            service.updateUserProfile(
+                userId = 1L,
+                fitnessGoals = listOf("Lose Weight", "Increase Cardio Health")
+            )
+
+            assertEquals("Lose Weight,Increase Cardio Health", captor.firstValue.fitnessGoals)
+        }
+
+        @Test
+        fun `updateUserProfile clears fitnessGoals when empty list passed`() {
+            val existing = makeUser(tier = SubscriptionTier.BASIC).copy(
+                fitnessGoals = "Existing,Goals"
+            )
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(existing))
+            val captor = argumentCaptor<User>()
+            whenever(userRepository.save(captor.capture())).thenAnswer { captor.lastValue }
+
+            service.updateUserProfile(
+                userId = 1L,
+                fitnessGoals = emptyList()
+            )
+
+            assertEquals("", captor.firstValue.fitnessGoals)
+        }
+    }
 }

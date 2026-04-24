@@ -28,8 +28,8 @@ data class WorkoutPlan(
     val sport: Sport,
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "position", nullable = false)
-    val position: Position,
+    @Column(name = "position")
+    val position: Position? = null,
     
     @Column(name = "workout_name", length = 255)
     val workoutName: String? = null,
@@ -54,9 +54,12 @@ data class WorkoutPlan(
     
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
-    
+
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    val updatedAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "display_title")
+    val displayTitle: String? = null
 ) {
     // Override equals and hashCode to work properly with JPA
     override fun equals(other: Any?): Boolean {

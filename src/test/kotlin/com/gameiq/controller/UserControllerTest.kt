@@ -29,7 +29,8 @@ class UserControllerTest {
         tier: SubscriptionTier = SubscriptionTier.TRIAL,
         sport: Sport? = Sport.FOOTBALL,
         position: Position? = Position.QB,
-        isActive: Boolean = true
+        isActive: Boolean = true,
+        fitnessGoals: String = ""
     ) = User(
         id = id,
         email = "test@test.com",
@@ -39,6 +40,7 @@ class UserControllerTest {
         primarySport = sport,
         primaryPosition = position,
         isActive = isActive,
+        fitnessGoals = fitnessGoals,
         createdAt = LocalDateTime.now(),
         updatedAt = LocalDateTime.now()
     )
@@ -333,6 +335,83 @@ class UserControllerTest {
             val response = controller.getUserByFirebaseUid("unknown")
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
+        }
+    }
+
+    // =========================================================================
+    // GENERAL_FITNESS profile responses and fitnessGoals persistence
+    // =========================================================================
+
+    @Nested
+    inner class GeneralFitnessUserProfileTests {
+
+        @Test
+        fun `GENERAL_FITNESS user profile returns sport as GENERAL_FITNESS string`() {
+            val user = makeUser(sport = Sport.GENERAL_FITNESS, position = null)
+            whenever(userService.findById(1L)).thenReturn(user)
+
+            val body = controller.getUserProfile(1L).body!!
+            assertEquals("GENERAL_FITNESS", body.primarySport)
+        }
+
+        @Test
+        fun `GENERAL_FITNESS user profile returns null primaryPosition`() {
+            val user = makeUser(sport = Sport.GENERAL_FITNESS, position = null)
+            whenever(userService.findById(1L)).thenReturn(user)
+
+            val body = controller.getUserProfile(1L).body!!
+            assertNull(body.primaryPosition)
+        }
+
+        @Test
+        fun `GENERAL_FITNESS user profile includes fitnessGoals`() {
+            val user = makeUser(
+                sport = Sport.GENERAL_FITNESS,
+                position = null,
+                fitnessGoals = "Lose Weight,Increase Strength & Muscle Mass"
+            )
+            whenever(userService.findById(1L)).thenReturn(user)
+
+            val body = controller.getUserProfile(1L).body!!
+            assertEquals(
+                listOf("Lose Weight", "Increase Strength & Muscle Mass"),
+                body.fitnessGoals
+            )
+        }
+
+        @Test
+        fun `updateUserProfile saves fitnessGoals for GENERAL_FITNESS user`() {
+            val updated = makeUser(
+                sport = Sport.GENERAL_FITNESS,
+                position = null,
+                fitnessGoals = "Lose Weight,Increase Strength & Muscle Mass"
+            )
+            whenever(userService.updateUserProfile(
+                any(), anyOrNull(), anyOrNull(), anyOrNull(),
+                anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()
+            )).thenReturn(updated)
+
+            val request = UserProfileUpdateRequest(
+                displayName = null,
+                primarySport = "GENERAL_FITNESS",
+                primaryPosition = null,
+                age = null,
+                fitnessGoals = listOf("Lose Weight", "Increase Strength & Muscle Mass")
+            )
+
+            val response = controller.updateUserProfile(1L, request)
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+
+            val captor = argumentCaptor<List<String>>()
+            verify(userService).updateUserProfile(
+                eq(1L), anyOrNull(), anyOrNull(), anyOrNull(),
+                anyOrNull(), anyOrNull(), anyOrNull(), captor.capture()
+            )
+            assertEquals(
+                listOf("Lose Weight", "Increase Strength & Muscle Mass"),
+                captor.firstValue
+            )
         }
     }
 }

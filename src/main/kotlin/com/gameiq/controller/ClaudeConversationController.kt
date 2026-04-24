@@ -24,8 +24,11 @@ data class ChatResponse(
     val position: String?,
     val conversationType: String,
     val timestamp: String,
-    val tokenUsage: Int?
+    val tokenUsage: Int?,
+    val displayTitle: String? = null
 )
+
+data class UpdateTitleRequest(val title: String)
 
 @RestController
 @RequestMapping("/conversations")
@@ -69,6 +72,18 @@ class ClaudeConversationController(
         }
     }
 
+    @PutMapping("/{conversationId}/title")
+    fun updateConversationTitle(
+        @PathVariable conversationId: Long,
+        @RequestBody request: UpdateTitleRequest
+    ): ResponseEntity<ChatResponse> {
+        val conversation = claudeConversationRepository.findById(conversationId)
+            .orElse(null) ?: return ResponseEntity.notFound().build()
+        val updated = conversation.copy(displayTitle = request.title)
+        val saved = claudeConversationRepository.save(updated)
+        return ResponseEntity.ok(saved.toChatResponse())
+    }
+
     @GetMapping("/available-options")
     fun getAvailableConversationOptions(): ResponseEntity<Map<String, List<String>>> {
         return ResponseEntity.ok(mapOf(
@@ -97,6 +112,17 @@ class ClaudeConversationController(
             .orElse(null) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(conversation.toChatResponse())
     }
+
+    @GetMapping("/session/{sessionId}")
+    fun getConversationsBySession(@PathVariable sessionId: String): ResponseEntity<List<ChatResponse>> {
+        return try {
+            val conversations = claudeConversationRepository.findConversationsBySessionOrdered(sessionId)
+                .filter { it.conversationType != ConversationType.WORKOUT_CUSTOMIZATION }
+            ResponseEntity.ok(conversations.map { it.toChatResponse() })
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().build()
+        }
+    }
 }
 
 // Extension to avoid repeating the mapping in every handler
@@ -109,5 +135,6 @@ private fun ClaudeConversation.toChatResponse() = ChatResponse(
     position = this.position?.name,
     conversationType = this.conversationType.name,
     timestamp = this.createdAt.toString(),
-    tokenUsage = (this.tokensUsedInput ?: 0) + (this.tokensUsedOutput ?: 0)
+    tokenUsage = (this.tokensUsedInput ?: 0) + (this.tokensUsedOutput ?: 0),
+    displayTitle = this.displayTitle
 )

@@ -76,12 +76,13 @@ class UserService(
         primaryPosition: Position? = null,
         age: Int? = null,
         subscriptionTier: SubscriptionTier? = null,
-        email: String? = null
+        email: String? = null,
+        fitnessGoals: List<String>? = null
     ): User {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("User not found: $userId") 
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("User not found: $userId")
         }
-        
+
         val updatedUser = user.copy(
             displayName = displayName ?: user.displayName,
             primarySport = primarySport ?: user.primarySport,
@@ -89,9 +90,26 @@ class UserService(
             age = age ?: user.age,
             email = email ?: user.email,
             subscriptionTier = subscriptionTier ?: user.subscriptionTier,
+            fitnessGoals = fitnessGoals?.joinToString(",") ?: user.fitnessGoals,
             updatedAt = LocalDateTime.now()
         )
-        
+
+        return userRepository.save(updatedUser)
+    }
+
+    /**
+     * Update only the user's fitness goals
+     */
+    fun updateFitnessGoals(userId: Long, fitnessGoals: List<String>): User {
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("User not found: $userId")
+        }
+
+        val updatedUser = user.copy(
+            fitnessGoals = fitnessGoals.joinToString(","),
+            updatedAt = LocalDateTime.now()
+        )
+
         return userRepository.save(updatedUser)
     }
     

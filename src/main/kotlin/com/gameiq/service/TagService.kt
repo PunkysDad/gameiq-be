@@ -35,7 +35,10 @@ class TagService @Autowired constructor(
     fun getUserTags(userId: Long): List<Tag> {
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found: $userId") }
-        if (user.subscriptionTier == SubscriptionTier.NONE) return emptyList()
+        if (user.subscriptionTier == SubscriptionTier.NONE ||
+            user.subscriptionTier == SubscriptionTier.BASIC) {
+            return emptyList()
+        }
         return tagRepository.findByUserIdOrderByNameAsc(userId)
     }
 
@@ -153,9 +156,9 @@ class TagService @Autowired constructor(
                 TaggedWorkoutResponse(
                     id = plan.id,
                     title = plan.workoutName
-                        ?: "${plan.position.name} ${plan.sport.name} workout",
+                        ?: "${plan.position?.name ?: ""} ${plan.sport.name} workout",
                     sport = plan.sport.name,
-                    position = plan.position.name,
+                    position = plan.position?.name ?: "",
                     createdAt = plan.createdAt.toString()
                 )
             }

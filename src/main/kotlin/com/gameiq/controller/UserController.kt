@@ -23,14 +23,20 @@ data class UserProfileResponse(
     val primarySport: String?,
     val primaryPosition: String?,
     val createdAt: String,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val fitnessGoals: List<String>? = null
 )
 
 data class UserProfileUpdateRequest(
     val displayName: String?,
     val primarySport: String?,
     val primaryPosition: String?,
-    val age: Int?
+    val age: Int?,
+    val fitnessGoals: List<String>? = null
+)
+
+data class FitnessGoalsUpdateRequest(
+    val fitnessGoals: List<String>
 )
 
 data class UserCreateRequest(
@@ -123,7 +129,8 @@ class UserController(
                 primarySport = updatedUser.primarySport?.name,
                 primaryPosition = updatedUser.primaryPosition?.name,
                 createdAt = updatedUser.createdAt.toString(),
-                isActive = updatedUser.isActive
+                isActive = updatedUser.isActive,
+                fitnessGoals = updatedUser.getFitnessGoalsList()
             )
             ResponseEntity.status(HttpStatus.CREATED).body(response)
         } catch (e: Exception) {
@@ -146,14 +153,15 @@ class UserController(
                 primarySport = user.primarySport?.name,
                 primaryPosition = user.primaryPosition?.name,
                 createdAt = user.createdAt.toString(),
-                isActive = user.isActive
+                isActive = user.isActive,
+                fitnessGoals = user.getFitnessGoalsList()
             )
             ResponseEntity.ok(response)
         } catch (e: Exception) {
             ResponseEntity.notFound().build()
         }
     }
-    
+
     @GetMapping("/firebase/{firebaseUid}")
     fun getUserByFirebaseUid(@PathVariable firebaseUid: String): ResponseEntity<UserProfileResponse> {
         return try {
@@ -167,7 +175,8 @@ class UserController(
                 primarySport = user.primarySport?.name,
                 primaryPosition = user.primaryPosition?.name,
                 createdAt = user.createdAt.toString(),
-                isActive = user.isActive
+                isActive = user.isActive,
+                fitnessGoals = user.getFitnessGoalsList()
             )
             ResponseEntity.ok(response)
         } catch (e: Exception) {
@@ -194,9 +203,10 @@ class UserController(
                 displayName = updateRequest.displayName,
                 primarySport = sport,
                 primaryPosition = position,
-                age = updateRequest.age
+                age = updateRequest.age,
+                fitnessGoals = updateRequest.fitnessGoals
             )
-            
+
             val response = UserProfileResponse(
                 id = updatedUser.id,
                 firebaseUid = updatedUser.firebaseUid,
@@ -206,14 +216,40 @@ class UserController(
                 primarySport = updatedUser.primarySport?.name,
                 primaryPosition = updatedUser.primaryPosition?.name,
                 createdAt = updatedUser.createdAt.toString(),
-                isActive = updatedUser.isActive
+                isActive = updatedUser.isActive,
+                fitnessGoals = updatedUser.getFitnessGoalsList()
             )
             ResponseEntity.ok(response)
         } catch (e: Exception) {
             ResponseEntity.badRequest().build()
         }
     }
-    
+
+    @PutMapping("/{userId}/fitness-goals")
+    fun updateFitnessGoals(
+        @PathVariable userId: Long,
+        @RequestBody request: FitnessGoalsUpdateRequest
+    ): ResponseEntity<UserProfileResponse> {
+        return try {
+            val updatedUser = userService.updateFitnessGoals(userId, request.fitnessGoals)
+            val response = UserProfileResponse(
+                id = updatedUser.id,
+                firebaseUid = updatedUser.firebaseUid,
+                email = updatedUser.email,
+                displayName = updatedUser.displayName,
+                subscriptionTier = updatedUser.subscriptionTier.name,
+                primarySport = updatedUser.primarySport?.name,
+                primaryPosition = updatedUser.primaryPosition?.name,
+                createdAt = updatedUser.createdAt.toString(),
+                isActive = updatedUser.isActive,
+                fitnessGoals = updatedUser.getFitnessGoalsList()
+            )
+            ResponseEntity.ok(response)
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().build()
+        }
+    }
+
     @GetMapping("/{userId}/stats")
     fun getUserStats(@PathVariable userId: Long): ResponseEntity<UserStatsResponse> {
         return try {

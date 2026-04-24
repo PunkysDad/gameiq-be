@@ -94,13 +94,15 @@ class TagServiceTest {
         }
 
         @Test
-        fun `TRIAL user gets empty list`() {
+        fun `TRIAL user gets their tags`() {
             val user = makeUser(tier = SubscriptionTier.TRIAL)
+            val tags = listOf(makeTag(name = "Footwork"), makeTag(id = 2L, name = "Strength"))
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+            whenever(tagRepository.findByUserIdOrderByNameAsc(1L)).thenReturn(tags)
 
             val result = service.getUserTags(1L)
 
-            assertTrue(result.isEmpty())
+            assertEquals(2, result.size)
         }
 
         @Test
@@ -171,13 +173,17 @@ class TagServiceTest {
         }
 
         @Test
-        fun `TRIAL user cannot create a tag`() {
+        fun `TRIAL user can create a tag`() {
             val user = makeUser(tier = SubscriptionTier.TRIAL)
+            val savedTag = makeTag(name = "Footwork")
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+            whenever(tagRepository.existsByUserIdAndNameIgnoreCase(1L, "Footwork")).thenReturn(false)
+            whenever(userRepository.getReferenceById(1L)).thenReturn(user)
+            doReturn(savedTag).whenever(tagRepository).save(anyOrNull())
 
-            assertThrows<IllegalStateException> {
-                service.createTag(1L, "Footwork")
-            }
+            val result = service.createTag(1L, "Footwork")
+
+            assertEquals("Footwork", result.name)
         }
 
         @Test
