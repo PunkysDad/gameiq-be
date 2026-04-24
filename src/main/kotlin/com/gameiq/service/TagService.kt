@@ -35,7 +35,10 @@ class TagService @Autowired constructor(
     fun getUserTags(userId: Long): List<Tag> {
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found: $userId") }
-        if (user.subscriptionTier == SubscriptionTier.NONE) return emptyList()
+        if (user.subscriptionTier == SubscriptionTier.NONE ||
+            user.subscriptionTier == SubscriptionTier.BASIC) {
+            return emptyList()
+        }
         return tagRepository.findByUserIdOrderByNameAsc(userId)
     }
 

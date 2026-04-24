@@ -119,7 +119,9 @@ class CoachingController(
             }
 
             val prompt = "Based on this fitness coaching response, write a single concise sentence " +
-                "(maximum 20 words) describing the specific workout focus and training method recommended. " +
+                "(maximum 20 words) describing ONLY the training methodology and goal — do NOT mention " +
+                "any specific equipment, machines, or exercises. Focus on the training approach " +
+                "(e.g., 'interval training', 'low-impact cardio', 'strength circuits') and the fitness goal. " +
                 "Return only the sentence, nothing else: $coachingResponse"
 
             val messages = listOf(mapOf("role" to "user", "content" to prompt))

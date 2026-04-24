@@ -87,7 +87,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `returns 200 on successful chat`() {
             val conversation = makeConversation()
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val response = controller.chatWithClaude(1L, makeChatRequest())
@@ -104,7 +104,7 @@ class ClaudeConversationControllerTest {
                 sport = Sport.FOOTBALL,
                 position = Position.QB
             )
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val body = controller.chatWithClaude(1L, makeChatRequest()).body!!
@@ -118,7 +118,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `tokenUsage is sum of input and output tokens`() {
             val conversation = makeConversation(inputTokens = 150, outputTokens = 350)
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val body = controller.chatWithClaude(1L, makeChatRequest()).body!!
@@ -128,7 +128,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `null sport in request is passed through as null`() {
             val conversation = makeConversation(sport = null, position = null)
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), isNull(), isNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), isNull(), isNull(), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val response = controller.chatWithClaude(1L, makeChatRequest(sport = null, position = null))
@@ -140,7 +140,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `sport string is converted to Sport enum before service call`() {
             val conversation = makeConversation(sport = Sport.BASKETBALL)
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), eq(Sport.BASKETBALL), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), eq(Sport.BASKETBALL), anyOrNull(), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val response = controller.chatWithClaude(1L, makeChatRequest(sport = "BASKETBALL"))
@@ -151,7 +151,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `position string is converted to Position enum before service call`() {
             val conversation = makeConversation(position = Position.PG)
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), eq(Position.PG), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), eq(Position.PG), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val response = controller.chatWithClaude(1L, makeChatRequest(position = "PG"))
@@ -162,7 +162,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `sessionId is forwarded to service`() {
             val conversation = makeConversation()
-            whenever(claudeService.chatWithClaude(any(), any(), eq("abc-123"), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), eq("abc-123"), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenReturn(conversation)
 
             val response = controller.chatWithClaude(1L, makeChatRequest(sessionId = "abc-123"))
@@ -180,7 +180,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `trial chat limit returns 429`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException("Trial chat limit reached (3 questions)."))
 
             val response = controller.chatWithClaude(1L, makeChatRequest())
@@ -191,7 +191,7 @@ class ClaudeConversationControllerTest {
         @Test
         fun `trial limit response body contains error message`() {
             val errMsg = "Trial chat limit reached (3 questions). Subscribe to Basic (\$12.99) or Premium (\$19.99)."
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException(errMsg))
 
             val body = controller.chatWithClaude(1L, makeChatRequest()).body!!
@@ -200,7 +200,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `BASIC monthly budget exceeded returns 429`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException("Monthly AI budget reached (\$4.00 of \$4.00)."))
 
             val response = controller.chatWithClaude(1L, makeChatRequest())
@@ -210,7 +210,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `NONE tier blocked returns 429`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException("No active subscription."))
 
             val response = controller.chatWithClaude(1L, makeChatRequest())
@@ -220,7 +220,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `rate limit response echoes original user message`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException("Trial chat limit reached."))
 
             val body = controller.chatWithClaude(1L, makeChatRequest(message = "Help me with routes")).body!!
@@ -229,7 +229,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `rate limit response preserves sport and position from request`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException("Trial chat limit reached."))
 
             val body = controller.chatWithClaude(1L, makeChatRequest(sport = "FOOTBALL", position = "QB")).body!!
@@ -239,7 +239,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `rate limit response id is 0`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(IllegalStateException("Trial chat limit reached."))
 
             val body = controller.chatWithClaude(1L, makeChatRequest()).body!!
@@ -256,7 +256,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `unexpected exception returns 400`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(RuntimeException("Claude API unavailable"))
 
             val response = controller.chatWithClaude(1L, makeChatRequest())
@@ -266,7 +266,7 @@ class ClaudeConversationControllerTest {
 
         @Test
         fun `unexpected exception returns no body`() {
-            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any()))
+            whenever(claudeService.chatWithClaude(any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any(), anyOrNull()))
                 .thenThrow(RuntimeException("Claude API unavailable"))
 
             val response = controller.chatWithClaude(1L, makeChatRequest())

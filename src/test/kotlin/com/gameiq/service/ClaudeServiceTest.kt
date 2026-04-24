@@ -290,10 +290,10 @@ class ClaudeServiceTest {
     inner class BasicTierRateLimitTests {
 
         @Test
-        fun `BASIC user under 400 cents can chat`() {
+        fun `BASIC user under 40000 units can chat`() {
             val user = makeUser(tier = SubscriptionTier.BASIC)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(399L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(39999L)
             stubClaudeApiResponse()
             stubConversationSave(user)
 
@@ -303,10 +303,10 @@ class ClaudeServiceTest {
         }
 
         @Test
-        fun `BASIC user at exactly 400 cents is blocked`() {
+        fun `BASIC user at exactly 40000 units is blocked`() {
             val user = makeUser(tier = SubscriptionTier.BASIC)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(400L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(40000L)
 
             val ex = assertThrows<IllegalStateException> {
                 service.chatWithClaude(userId = 1L, message = "blocked")
@@ -315,10 +315,10 @@ class ClaudeServiceTest {
         }
 
         @Test
-        fun `BASIC user over 400 cents is blocked`() {
+        fun `BASIC user over 40000 units is blocked`() {
             val user = makeUser(tier = SubscriptionTier.BASIC)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(450L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(40001L)
 
             val ex = assertThrows<IllegalStateException> {
                 service.chatWithClaude(userId = 1L, message = "blocked")
@@ -331,7 +331,7 @@ class ClaudeServiceTest {
         fun `BASIC limit error message mentions upgrade to Premium`() {
             val user = makeUser(tier = SubscriptionTier.BASIC)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(400L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(40000L)
 
             val ex = assertThrows<IllegalStateException> {
                 service.chatWithClaude(userId = 1L, message = "blocked")
@@ -361,10 +361,10 @@ class ClaudeServiceTest {
     inner class PremiumTierRateLimitTests {
 
         @Test
-        fun `PREMIUM user under 800 cents can chat`() {
+        fun `PREMIUM user under 80000 units can chat`() {
             val user = makeUser(tier = SubscriptionTier.PREMIUM)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(799L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(79999L)
             stubClaudeApiResponse()
             stubConversationSave(user)
 
@@ -374,10 +374,10 @@ class ClaudeServiceTest {
         }
 
         @Test
-        fun `PREMIUM user at exactly 800 cents is blocked`() {
+        fun `PREMIUM user at exactly 80000 units is blocked`() {
             val user = makeUser(tier = SubscriptionTier.PREMIUM)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(800L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(80000L)
 
             val ex = assertThrows<IllegalStateException> {
                 service.chatWithClaude(userId = 1L, message = "blocked")
@@ -386,10 +386,10 @@ class ClaudeServiceTest {
         }
 
         @Test
-        fun `PREMIUM user over 800 cents is blocked`() {
+        fun `PREMIUM user over 80000 units is blocked`() {
             val user = makeUser(tier = SubscriptionTier.PREMIUM)
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(850L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(80001L)
 
             val ex = assertThrows<IllegalStateException> {
                 service.chatWithClaude(userId = 1L, message = "blocked")
@@ -404,7 +404,7 @@ class ClaudeServiceTest {
 
             whenever(userRepository.findById(1L)).thenReturn(Optional.of(premiumUser))
             whenever(userRepository.findById(2L)).thenReturn(Optional.of(basicUser))
-            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(799L)
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(79999L)
             stubClaudeApiResponse()
             stubConversationSave(premiumUser)
 
@@ -434,23 +434,23 @@ class ClaudeServiceTest {
         }
 
         @Test
-        fun `typical chat (181 input, 417 output) costs approximately 1 cent`() {
-            assertEquals(1, calcCost(181, 417))
+        fun `typical chat (181 input, 417 output) costs approximately 68 units`() {
+            assertEquals(68, calcCost(181, 417))
         }
 
         @Test
-        fun `typical workout (3094 input, 4000 output) costs approximately 7 cents`() {
-            assertEquals(7, calcCost(3094, 4000))
+        fun `typical workout (3094 input, 4000 output) costs approximately 693 units`() {
+            assertEquals(693, calcCost(3094, 4000))
         }
 
         @Test
-        fun `1 million input tokens costs 300 cents`() {
-            assertEquals(300, calcCost(1_000_000, 0))
+        fun `1 million input tokens costs 30000 units`() {
+            assertEquals(30000, calcCost(1_000_000, 0))
         }
 
         @Test
-        fun `1 million output tokens costs 1500 cents`() {
-            assertEquals(1500, calcCost(0, 1_000_000))
+        fun `1 million output tokens costs 150000 units`() {
+            assertEquals(150000, calcCost(0, 1_000_000))
         }
 
         @Test
@@ -630,6 +630,116 @@ class ClaudeServiceTest {
                 availableEquipment = "Full gym", sessionDuration = 45,
                 focusAreas = "Leg strength"
             )
+        }
+    }
+
+    // =========================================================================
+    // GENERAL_FITNESS sport — no position, goal-oriented workouts
+    // =========================================================================
+
+    @Nested
+    inner class GeneralFitnessTierTests {
+
+        private val generalFitnessWorkoutJson = """
+            {
+                "workoutTitle": "General Fitness Full-Body Session",
+                "positionFocus": "Targets the user's fitness goals",
+                "exercises": [
+                    {"name": "Pushup", "sets": 3, "reps": "10"}
+                ],
+                "equipmentNeeded": "None",
+                "focusAreas": "Full body",
+                "estimatedDuration": 45
+            }
+        """.trimIndent()
+
+        @Test
+        fun `GENERAL_FITNESS sport skips position lookup and does not throw`() {
+            val user = makeUser(tier = SubscriptionTier.TRIAL, trialWorkouts = 0)
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+            stubClaudeApiResponse(generalFitnessWorkoutJson)
+            stubConversationSave(user)
+
+            assertDoesNotThrow {
+                service.generateWorkoutPlan(
+                    userId = 1L, sport = "GENERAL_FITNESS", position = null,
+                    experienceLevel = "INTERMEDIATE", trainingPhase = "OFF_SEASON",
+                    availableEquipment = "None", sessionDuration = 45,
+                    focusAreas = "Full body"
+                )
+            }
+        }
+
+        @Test
+        fun `GENERAL_FITNESS workout increments trialWorkoutsUsed`() {
+            val user = makeUser(tier = SubscriptionTier.TRIAL, trialWorkouts = 0)
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+            stubClaudeApiResponse(generalFitnessWorkoutJson)
+            stubConversationSave(user)
+
+            val captor = argumentCaptor<User>()
+            whenever(userRepository.save(captor.capture())).thenReturn(user)
+
+            service.generateWorkoutPlan(
+                userId = 1L, sport = "GENERAL_FITNESS", position = null,
+                experienceLevel = "INTERMEDIATE", trainingPhase = "OFF_SEASON",
+                availableEquipment = "None", sessionDuration = 45,
+                focusAreas = "Full body"
+            )
+
+            assertEquals(1, captor.lastValue.trialWorkoutsUsed)
+        }
+
+        @Test
+        fun `GENERAL_FITNESS workout blocked when trial limit reached`() {
+            val user = makeUser(tier = SubscriptionTier.TRIAL, trialWorkouts = 1)
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+
+            val ex = assertThrows<IllegalStateException> {
+                service.generateWorkoutPlan(
+                    userId = 1L, sport = "GENERAL_FITNESS", position = null,
+                    experienceLevel = "INTERMEDIATE", trainingPhase = "OFF_SEASON",
+                    availableEquipment = "None", sessionDuration = 45,
+                    focusAreas = "Full body"
+                )
+            }
+            assertTrue(ex.message!!.contains("Trial workout limit reached"))
+        }
+
+        @Test
+        fun `GENERAL_FITNESS BASIC user under budget can generate workout`() {
+            val user = makeUser(tier = SubscriptionTier.BASIC)
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(399L)
+            stubClaudeApiResponse(generalFitnessWorkoutJson)
+            stubConversationSave(user)
+
+            assertDoesNotThrow {
+                service.generateWorkoutPlan(
+                    userId = 1L, sport = "GENERAL_FITNESS", position = null,
+                    experienceLevel = "INTERMEDIATE", trainingPhase = "OFF_SEASON",
+                    availableEquipment = "None", sessionDuration = 45,
+                    focusAreas = "Full body"
+                )
+            }
+        }
+
+        @Test
+        fun `GENERAL_FITNESS PREMIUM user under budget can generate workout`() {
+            val user = makeUser(tier = SubscriptionTier.PREMIUM)
+            whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+            whenever(claudeConversationRepository.getCostByUserSince(anyOrNull(), anyOrNull())).thenReturn(799L)
+            stubClaudeApiResponse(generalFitnessWorkoutJson)
+            stubConversationSave(user)
+
+            assertDoesNotThrow {
+                service.generateWorkoutPlan(
+                    userId = 1L, sport = "GENERAL_FITNESS", position = null,
+                    experienceLevel = "INTERMEDIATE", trainingPhase = "OFF_SEASON",
+                    availableEquipment = "None", sessionDuration = 45,
+                    focusAreas = "Full body"
+                )
+            }
         }
     }
 }

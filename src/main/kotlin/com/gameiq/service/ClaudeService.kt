@@ -214,6 +214,7 @@ class ClaudeService(
             Experience Level: $experienceLevel
             Approach: ongoing fitness development
             Available Equipment: $availableEquipment
+            STRICT EQUIPMENT RULE: You may ONLY use exercises that require the equipment listed in 'Available Equipment' above plus any items in 'Additional Equipment Available'. Do NOT recommend exercises requiring equipment not on this list. If the Primary Training Focus mentions specific machines (e.g., rowing machine, stationary bike) that are not in the Available Equipment list, substitute with available alternatives that achieve the same training goal.
             Focus Areas: $focusAreas
             $goalsBlock
             ${specialRequirements?.let { "Special Requirements: $it" } ?: ""}

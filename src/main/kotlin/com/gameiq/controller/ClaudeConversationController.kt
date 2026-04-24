@@ -112,6 +112,17 @@ class ClaudeConversationController(
             .orElse(null) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(conversation.toChatResponse())
     }
+
+    @GetMapping("/session/{sessionId}")
+    fun getConversationsBySession(@PathVariable sessionId: String): ResponseEntity<List<ChatResponse>> {
+        return try {
+            val conversations = claudeConversationRepository.findConversationsBySessionOrdered(sessionId)
+                .filter { it.conversationType != ConversationType.WORKOUT_CUSTOMIZATION }
+            ResponseEntity.ok(conversations.map { it.toChatResponse() })
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().build()
+        }
+    }
 }
 
 // Extension to avoid repeating the mapping in every handler
